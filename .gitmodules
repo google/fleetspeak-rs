@@ -1,0 +1,3 @@
+[submodule "proto/fleetspeak"]
+	path = proto/fleetspeak
+	url = https://github.com/google/fleetspeak
