@@ -7,7 +7,6 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use fleetspeak_proto::common::{Message, Address};
 use prost;
 use prost_types;
-use std::error::Error;
 use std::io::{Read, Write, Result};
 use std::marker::{Send, Sync};
 
@@ -23,7 +22,7 @@ impl<'r, 'w, R: Read, W: Write> Connection<'r, 'w, R, W> {
         Connection {
             input: input,
             output: output,
-            buf: vec!(0; 2 * 1024 * 1024), // TODO: Magic.
+            buf: vec!(0; MAX_BUF_SIZE),
         }
     }
 
@@ -73,7 +72,7 @@ impl<'r, 'w, R: Read, W: Write> Connection<'r, 'w, R, W> {
 
         self.output.write_u32::<LittleEndian>(len as u32)?;
         self.output.write(&self.buf[..len])?;
-        self.output.write_u32::<LittleEndian>(0xf1ee1001)?; // TODO: Magic.
+        self.output.write_u32::<LittleEndian>(MAGIC)?;
 
         Ok(())
     }
@@ -99,3 +98,6 @@ where
 {
     return std::io::Error::new(std::io::ErrorKind::InvalidData, err);
 }
+
+const MAGIC: u32 = 0xf1ee1001;
+const MAX_BUF_SIZE: usize = 2 * 1024 * 1024;
