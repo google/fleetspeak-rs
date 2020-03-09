@@ -7,7 +7,9 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use fleetspeak_proto::common::{Message, Address};
 use prost;
 use prost_types;
-use std::io::{Read, Write, Result, Error, ErrorKind};
+use std::error::Error;
+use std::io::{Read, Write, Result};
+use std::marker::{Send, Sync};
 
 pub struct Connection<'r, 'w, R, W> {
     pub input: &'r mut R,
@@ -62,13 +64,7 @@ impl<'r, 'w, R: Read, W: Write> Connection<'r, 'w, R, W> {
             None => return Ok(Default::default()),
         };
 
-        match prost::Message::decode(&data.value[..]) {
-            Ok(data) => Ok(data),
-            Err(err) => {
-                let err = Error::new(ErrorKind::InvalidData, Box::new(err));
-                Err(err)
-            },
-        }
+        prost::Message::decode(&data.value[..]).map_err(invalid_data_error)
     }
 
     fn emit(&mut self, msg: Message) -> Result<()> {
@@ -86,24 +82,20 @@ impl<'r, 'w, R: Read, W: Write> Connection<'r, 'w, R, W> {
         let len = self.input.read_i32::<LittleEndian>()? as usize;
         self.input.read_exact(&mut self.buf[..len])?;
 
-        match prost::Message::decode(&self.buf[..len]) {
-            Ok(msg) => Ok(msg),
-            Err(err) => {
-                let err = Error::new(ErrorKind::InvalidData, Box::new(err));
-                Err(err)
-            },
-        }
+        prost::Message::decode(&self.buf[..len]).map_err(invalid_data_error)
     }
 
     fn encode<M>(&mut self, msg: M) -> Result<()>
     where
         M: prost::Message,
     {
-        if let Err(err) = msg.encode(&mut self.buf) {
-            let err = Error::new(ErrorKind::InvalidData, Box::new(err));
-            return Err(err);
-        };
-
-        Ok(())
+        msg.encode(&mut self.buf).map_err(invalid_data_error)
     }
+}
+
+fn invalid_data_error<E>(err: E) -> std::io::Error
+where
+    E: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    return std::io::Error::new(std::io::ErrorKind::InvalidData, err);
 }
