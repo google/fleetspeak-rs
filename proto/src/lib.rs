@@ -6,3 +6,7 @@
 pub mod common {
     include!(concat!(env!("OUT_DIR"), "/fleetspeak.rs"));
 }
+
+pub mod channel {
+    include!(concat!(env!("OUT_DIR"), "/fleetspeak.channel.rs"));
+}

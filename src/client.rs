@@ -5,6 +5,7 @@
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use fleetspeak_proto::common::{Message, Address};
+use fleetspeak_proto::channel::{StartupData};
 use prost;
 use prost_types;
 use std::io::{Read, Write, Result};
@@ -37,6 +38,15 @@ impl<'r, 'w, R: Read, W: Write> Connection<'r, 'w, R, W> {
         };
 
         self.emit(msg)
+    }
+
+    pub fn handshake(&mut self, version: &str) -> Result<()> {
+        let data = StartupData {
+            pid: std::process::id() as i64,
+            version: version.to_string(),
+        };
+
+        self.send("system", "StartupData", data)
     }
 
     pub fn send<M>(&mut self, service: &str, kind: &str, data: M) -> Result<()>
