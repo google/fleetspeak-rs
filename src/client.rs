@@ -26,6 +26,19 @@ impl<'r, 'w, R: Read, W: Write> Connection<'r, 'w, R, W> {
         }
     }
 
+    pub fn heartbeat(&mut self) -> Result<()> {
+        let msg = Message {
+            message_type: "Hearbeat".to_string(),
+            destination: Some(Address {
+                service_name: "system".to_string(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        self.emit(msg)
+    }
+
     pub fn send<M>(&mut self, service: &str, kind: &str, data: M) -> Result<()>
     where
         M: prost::Message,
