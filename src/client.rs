@@ -6,20 +6,21 @@
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use fleetspeak_proto::common::{Message, Address};
 use fleetspeak_proto::channel::{StartupData};
+use lazy_static::lazy_static;
 use prost;
 use prost_types;
 use std::io::{Read, Write, Result};
 use std::marker::{Send, Sync};
 
-pub struct Connection<'r, 'w, R, W> {
-    pub input: &'r mut R,
-    pub output: &'w mut W,
+pub struct Connection<R, W> {
+    pub input: R,
+    pub output: W,
     buf: Vec<u8>,
 }
 
-impl<'r, 'w, R: Read, W: Write> Connection<'r, 'w, R, W> {
+impl<R: Read, W: Write> Connection<R, W> {
 
-    pub fn new(input: &'r mut R, output: &'w mut W) -> Self {
+    pub fn new(input: R, output: W) -> Self {
         Connection {
             input: input,
             output: output,
