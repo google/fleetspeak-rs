@@ -31,7 +31,7 @@ impl<R: Read, W: Write> Connection<R, W> {
 
     pub fn heartbeat(&mut self) -> Result<()> {
         let msg = Message {
-            message_type: "Hearbeat".to_string(),
+            message_type: "Heartbeat".to_string(),
             destination: Some(Address {
                 service_name: "system".to_string(),
                 ..Default::default()
