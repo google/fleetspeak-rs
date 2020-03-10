@@ -160,21 +160,27 @@ lazy_static! {
 }
 
 pub fn heartbeat() -> Result<()> {
-    CONNECTION.lock().expect("poisoned connection mutex").heartbeat()
+    connected(|conn| conn.heartbeat())
 }
 
 pub fn send<M>(service: &str, kind: &str, data: M) -> Result<()>
 where
     M: prost::Message,
 {
-    let mut conn = CONNECTION.lock().expect("poisoned connection mutex");
-    conn.send(service, kind, data)
+    connected(|conn| conn.send(service, kind, data))
 }
 
 pub fn receive<M>() -> Result<M>
 where
     M: prost::Message + Default,
 {
+    connected(|conn| conn.receive())
+}
+
+fn connected<F, T>(f: F) -> Result<T>
+where
+    F: FnOnce(&mut Connection<std::fs::File, std::fs::File>) -> Result<T>
+{
     let mut conn = CONNECTION.lock().expect("poisoned connection mutex");
-    conn.receive()
+    f(&mut conn)
 }
