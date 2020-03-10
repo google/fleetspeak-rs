@@ -11,6 +11,7 @@ use prost;
 use prost_types;
 use std::io::{Read, Write, Result};
 use std::marker::{Send, Sync};
+use std::sync::Mutex;
 
 pub struct Connection<R, W> {
     pub input: R,
@@ -144,7 +145,7 @@ fn open(var: &str) -> std::fs::File {
 }
 
 lazy_static! {
-    static ref CONNECTION: Connection<std::fs::File, std::fs::File> = {
+    static ref CONNECTION: Mutex<Connection<std::fs::File, std::fs::File>> = {
         let input = open("FLEETSPEAK_COMMS_CHANNEL_INFD");
         let output = open("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
 
@@ -154,6 +155,26 @@ lazy_static! {
             panic!("handshake failure: {}", err);
         }
 
-        connection
+        Mutex::new(connection)
     };
+}
+
+pub fn heartbeat() -> Result<()> {
+    CONNECTION.lock().expect("poisoned connection mutex").heartbeat()
+}
+
+pub fn send<M>(service: &str, kind: &str, data: M) -> Result<()>
+where
+    M: prost::Message,
+{
+    let mut conn = CONNECTION.lock().expect("poisoned connection mutex");
+    conn.send(service, kind, data)
+}
+
+pub fn receive<M>() -> Result<M>
+where
+    M: prost::Message + Default,
+{
+    let mut conn = CONNECTION.lock().expect("poisoned connection mutex");
+    conn.receive()
 }
