@@ -125,3 +125,35 @@ where
 
 const MAGIC: u32 = 0xf1ee1001;
 const MAX_BUF_SIZE: usize = 2 * 1024 * 1024;
+
+fn open(var: &str) -> std::fs::File {
+    let fd = match std::env::var(var) {
+        Ok(fd) => fd,
+        Err(err) => panic!("invalid variable `{}`: {}", var, err),
+    };
+
+    let fd = match fd.parse() {
+        Ok(fd) => fd,
+        Err(err) => panic!("failed to parse a file descriptor: {}", err),
+    };
+
+    // TODO: Add support for Windows.
+    unsafe {
+        std::os::unix::io::FromRawFd::from_raw_fd(fd)
+    }
+}
+
+lazy_static! {
+    static ref CONNECTION: Connection<std::fs::File, std::fs::File> = {
+        let input = open("FLEETSPEAK_COMMS_CHANNEL_INFD");
+        let output = open("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
+
+        let mut connection = Connection::new(input, output);
+        // TODO: Add support for custom versions.
+        if let Err(err) = connection.handshake("0.0.0") {
+            panic!("handshake failure: {}", err);
+        }
+
+        connection
+    };
+}
