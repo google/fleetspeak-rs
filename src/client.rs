@@ -99,6 +99,7 @@ impl<R: Read, W: Write> Connection<R, W> {
         self.output.write_u32::<LittleEndian>(len as u32)?;
         self.output.write(&self.buf[..len])?;
         self.output.write_u32::<LittleEndian>(MAGIC)?;
+        self.output.flush()?;
 
         Ok(())
     }
