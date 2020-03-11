@@ -55,6 +55,7 @@ impl<R: Read, W: Write> Connection<R, W> {
     where
         M: prost::Message,
     {
+        let len = data.encoded_len();
         self.encode(data)?;
 
         let msg = Message {
@@ -64,7 +65,7 @@ impl<R: Read, W: Write> Connection<R, W> {
                 ..Default::default()
             }),
             data: Some(prost_types::Any {
-                value: self.buf.to_vec(),
+                value: self.buf[..len].to_vec(),
                 ..Default::default()
             }),
             ..Default::default()
