@@ -165,15 +165,10 @@ where
 const MAGIC: u32 = 0xf1ee1001;
 
 fn open(var: &str) -> std::fs::File {
-    let fd = match std::env::var(var) {
-        Ok(fd) => fd,
-        Err(err) => panic!("invalid variable `{}`: {}", var, err),
-    };
-
-    let fd = match fd.parse() {
-        Ok(fd) => fd,
-        Err(err) => panic!("failed to parse a file descriptor: {}", err),
-    };
+    let fd = std::env::var(var)
+        .expect(&format!("invalid variable `{}`", var))
+        .parse()
+        .expect(&format!("failed to parse file descriptor"));
 
     // TODO: Add support for Windows.
     unsafe {
