@@ -21,12 +21,15 @@ pub struct Connection<R, W> {
 
 impl<R: Read, W: Write> Connection<R, W> {
 
-    pub fn new(input: R, output: W) -> Self {
-        Connection {
+    pub fn new(input: R, output: W) -> Result<Self> {
+        let mut conn = Connection {
             input: input,
             output: output,
             buf: vec!(0; MAX_BUF_SIZE),
-        }
+        };
+        conn.handshake()?;
+
+        Ok(conn)
     }
 
     pub fn heartbeat(&mut self) -> Result<()> {
@@ -42,7 +45,7 @@ impl<R: Read, W: Write> Connection<R, W> {
         self.emit(msg)
     }
 
-    pub fn handshake(&mut self, version: &str) -> Result<()> {
+    pub fn startup(&mut self, version: &str) -> Result<()> {
         let data = StartupData {
             pid: std::process::id() as i64,
             version: version.to_string(),
@@ -117,6 +120,20 @@ impl<R: Read, W: Write> Connection<R, W> {
     {
         msg.encode(&mut self.buf).map_err(invalid_data_error)
     }
+
+    fn handshake(&mut self) -> Result<()> {
+        self.output.write_u32::<LittleEndian>(MAGIC)?;
+        self.output.flush()?;
+
+        let magic = self.input.read_u32::<LittleEndian>()?;
+        if magic != MAGIC {
+            let err = invalid_data_error(format!("invalid magic `{}`", magic));
+            return Err(err);
+        }
+
+        Ok(())
+    }
+
 }
 
 fn invalid_data_error<E>(err: E) -> std::io::Error
@@ -151,18 +168,17 @@ lazy_static! {
         let input = open("FLEETSPEAK_COMMS_CHANNEL_INFD");
         let output = open("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
 
-        let mut connection = Connection::new(input, output);
-        // TODO: Add support for custom versions.
-        if let Err(err) = connection.handshake("0.0.0") {
-            panic!("handshake failure: {}", err);
-        }
-
-        Mutex::new(connection)
+        let conn = Connection::new(input, output).expect("handshake failure");
+        Mutex::new(conn)
     };
 }
 
 pub fn heartbeat() -> Result<()> {
     connected(|conn| conn.heartbeat())
+}
+
+pub fn startup(version: &str) -> Result<()> {
+    connected(|conn| conn.startup(version))
 }
 
 pub fn send<M>(service: &str, kind: &str, data: M) -> Result<()>
