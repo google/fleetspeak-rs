@@ -32,9 +32,9 @@ impl<R: Read, W: Write> Connection<R, W> {
 
     pub fn heartbeat(&mut self) -> Result<()> {
         let msg = Message {
-            message_type: "Heartbeat".to_string(),
+            message_type: String::from("Heartbeat"),
             destination: Some(Address {
-                service_name: "system".to_string(),
+                service_name: String::from("system"),
                 ..Default::default()
             }),
             ..Default::default()
@@ -46,21 +46,21 @@ impl<R: Read, W: Write> Connection<R, W> {
     pub fn startup(&mut self, version: &str) -> Result<()> {
         let data = StartupData {
             pid: std::process::id() as i64,
-            version: version.to_string(),
+            version: String::from(version),
         };
 
         let mut buf = Vec::new();
         prost::Message::encode(&data, &mut buf).map_err(invalid_data_error)?;
 
         let msg = Message {
-            message_type: "StartupData".to_string(),
+            message_type: String::from("StartupData"),
             destination: Some(Address {
-                service_name: "system".to_string(),
+                service_name: String::from("system"),
                 ..Default::default()
             }),
             data: Some(prost_types::Any {
                 value: buf,
-                type_url: "type.googleapis.com/fleetspeak.channel.StartupData".to_string(),
+                type_url: String::from("type.googleapis.com/fleetspeak.channel.StartupData"),
             }),
             ..Default::default()
         };
@@ -76,9 +76,9 @@ impl<R: Read, W: Write> Connection<R, W> {
         prost::Message::encode(&data, &mut buf).map_err(invalid_data_error)?;
 
         let msg = Message {
-            message_type: kind.to_string(),
+            message_type: String::from(kind),
             destination: Some(Address {
-                service_name: service.to_string(),
+                service_name: String::from(service),
                 ..Default::default()
             }),
             data: Some(prost_types::Any {
