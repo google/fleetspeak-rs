@@ -82,7 +82,7 @@ impl<R: Read, W: Write> Connection<R, W> {
                 ..Default::default()
             }),
             data: Some(prost_types::Any {
-                value: buf.to_vec(),
+                value: buf,
                 ..Default::default()
             }),
             ..Default::default()
