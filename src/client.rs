@@ -16,7 +16,6 @@ use std::sync::Mutex;
 pub struct Connection<R, W> {
     pub input: R,
     pub output: W,
-    buf: Vec<u8>,
 }
 
 impl<R: Read, W: Write> Connection<R, W> {
@@ -25,7 +24,6 @@ impl<R: Read, W: Write> Connection<R, W> {
         let mut conn = Connection {
             input: input,
             output: output,
-            buf: vec!(0; MAX_BUF_SIZE),
         };
         conn.handshake()?;
 
@@ -58,8 +56,8 @@ impl<R: Read, W: Write> Connection<R, W> {
     where
         M: prost::Message,
     {
-        let len = data.encoded_len();
-        self.encode(data)?;
+        let mut buf = Vec::new();
+        prost::Message::encode(&data, &mut buf).map_err(invalid_data_error)?;
 
         let msg = Message {
             message_type: kind.to_string(),
@@ -68,7 +66,7 @@ impl<R: Read, W: Write> Connection<R, W> {
                 ..Default::default()
             }),
             data: Some(prost_types::Any {
-                value: self.buf[..len].to_vec(),
+                value: buf.to_vec(),
                 ..Default::default()
             }),
             ..Default::default()
@@ -96,11 +94,11 @@ impl<R: Read, W: Write> Connection<R, W> {
     }
 
     fn emit(&mut self, msg: Message) -> Result<()> {
-        let len = prost::Message::encoded_len(&msg);
-        self.encode(msg)?;
+        let mut buf = Vec::new();
+        prost::Message::encode(&msg, &mut buf).map_err(invalid_data_error)?;
 
-        self.output.write_u32::<LittleEndian>(len as u32)?;
-        self.output.write(&self.buf[..len])?;
+        self.output.write_u32::<LittleEndian>(buf.len() as u32)?;
+        self.output.write(&buf)?;
         self.output.write_u32::<LittleEndian>(MAGIC)?;
         self.output.flush()?;
 
@@ -109,16 +107,10 @@ impl<R: Read, W: Write> Connection<R, W> {
 
     fn collect(&mut self) -> Result<Message> {
         let len = self.input.read_i32::<LittleEndian>()? as usize;
-        self.input.read_exact(&mut self.buf[..len])?;
+        let mut buf = vec!(0; len);
+        self.input.read_exact(&mut buf[..])?;
 
-        prost::Message::decode(&self.buf[..len]).map_err(invalid_data_error)
-    }
-
-    fn encode<M>(&mut self, msg: M) -> Result<()>
-    where
-        M: prost::Message,
-    {
-        msg.encode(&mut self.buf).map_err(invalid_data_error)
+        prost::Message::decode(&buf[..]).map_err(invalid_data_error)
     }
 
     fn handshake(&mut self) -> Result<()> {
@@ -144,7 +136,6 @@ where
 }
 
 const MAGIC: u32 = 0xf1ee1001;
-const MAX_BUF_SIZE: usize = 2 * 1024 * 1024;
 
 fn open(var: &str) -> std::fs::File {
     let fd = match std::env::var(var) {
