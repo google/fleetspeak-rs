@@ -14,8 +14,8 @@ use std::marker::{Send, Sync};
 use std::sync::Mutex;
 
 pub struct Connection<R, W> {
-    pub input: R,
-    pub output: W,
+    input: R,
+    output: W,
 }
 
 impl<R: Read, W: Write> Connection<R, W> {
