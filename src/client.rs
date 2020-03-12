@@ -115,7 +115,7 @@ impl<R: Read, W: Write> Connection<R, W> {
 
         self.output.write_u32::<LittleEndian>(buf.len() as u32)?;
         self.output.write(&buf)?;
-        self.output.write_u32::<LittleEndian>(MAGIC)?;
+        self.write_magic()?;
         self.output.flush()?;
 
         Ok(())
@@ -125,20 +125,26 @@ impl<R: Read, W: Write> Connection<R, W> {
         let len = self.input.read_u32::<LittleEndian>()? as usize;
         let mut buf = vec!(0; len);
         self.input.read_exact(&mut buf[..])?;
-
-        let magic = self.input.read_u32::<LittleEndian>()?;
-        if magic != MAGIC {
-            let err = invalid_data_error(format!("invalid magic: `{}`", magic));
-            return Err(err);
-        }
+        self.read_magic()?;
 
         prost::Message::decode(&buf[..]).map_err(invalid_data_error)
     }
 
     fn handshake(&mut self) -> Result<()> {
-        self.output.write_u32::<LittleEndian>(MAGIC)?;
+        self.write_magic()?;
         self.output.flush()?;
+        self.read_magic()?;
 
+        Ok(())
+    }
+
+    fn write_magic(&mut self) -> Result<()> {
+        self.output.write_u32::<LittleEndian>(MAGIC)?;
+
+        Ok(())
+    }
+
+    fn read_magic(&mut self) -> Result<()> {
         let magic = self.input.read_u32::<LittleEndian>()?;
         if magic != MAGIC {
             let err = invalid_data_error(format!("invalid magic `{}`", magic));
@@ -147,7 +153,6 @@ impl<R: Read, W: Write> Connection<R, W> {
 
         Ok(())
     }
-
 }
 
 fn invalid_data_error<E>(err: E) -> std::io::Error
