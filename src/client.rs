@@ -49,7 +49,23 @@ impl<R: Read, W: Write> Connection<R, W> {
             version: version.to_string(),
         };
 
-        self.send("system", "StartupData", data)
+        let mut buf = Vec::new();
+        prost::Message::encode(&data, &mut buf).map_err(invalid_data_error)?;
+
+        let msg = Message {
+            message_type: "StartupData".to_string(),
+            destination: Some(Address {
+                service_name: "system".to_string(),
+                ..Default::default()
+            }),
+            data: Some(prost_types::Any {
+                value: buf,
+                type_url: "type.googleapis.com/fleetspeak.channel.StartupData".to_string(),
+            }),
+            ..Default::default()
+        };
+
+        self.emit(msg)
     }
 
     pub fn send<M>(&mut self, service: &str, kind: &str, data: M) -> Result<()>
