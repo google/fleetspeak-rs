@@ -193,3 +193,38 @@ where
     let mut conn = CONNECTION.lock().expect("poisoned connection mutex");
     f(&mut conn)
 }
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+    use super::*;
+
+    #[test]
+    fn handshake_good_magic() {
+        let mut buf_in = [0; 1024];
+        let mut buf_out = [0; 1024];
+
+        let mut cur = Cursor::new(&mut buf_in[..]);
+        assert!(cur.write_u32::<LittleEndian>(MAGIC).is_ok());
+
+        let cur_in = Cursor::new(&mut buf_in[..]);
+        let cur_out = Cursor::new(&mut buf_out[..]);
+        assert!(Connection::new(cur_in, cur_out).is_ok());
+
+        let mut cur = Cursor::new(&mut buf_out[..]);
+        assert_eq!(cur.read_u32::<LittleEndian>().unwrap(), MAGIC);
+    }
+
+    #[test]
+    fn handshake_bad_magic() {
+        let mut buf_in = [0; 1024];
+        let mut buf_out = [0; 1024];
+
+        let mut cur = Cursor::new(&mut buf_in[..]);
+        assert!(cur.write_u32::<LittleEndian>(0xf1ee1337).is_ok());
+
+        let cur_in = Cursor::new(&mut buf_in[..]);
+        let cur_out = Cursor::new(&mut buf_out[..]);
+        assert!(Connection::new(cur_in, cur_out).is_err());
+    }
+}
