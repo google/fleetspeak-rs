@@ -106,7 +106,7 @@ impl<R: Read, W: Write> Connection<R, W> {
     }
 
     fn collect(&mut self) -> Result<Message> {
-        let len = self.input.read_i32::<LittleEndian>()? as usize;
+        let len = self.input.read_u32::<LittleEndian>()? as usize;
         let mut buf = vec!(0; len);
         self.input.read_exact(&mut buf[..])?;
 
