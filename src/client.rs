@@ -126,6 +126,12 @@ impl<R: Read, W: Write> Connection<R, W> {
         let mut buf = vec!(0; len);
         self.input.read_exact(&mut buf[..])?;
 
+        let magic = self.input.read_u32::<LittleEndian>()?;
+        if magic != MAGIC {
+            let err = invalid_data_error(format!("invalid magic: `{}`", magic));
+            return Err(err);
+        }
+
         prost::Message::decode(&buf[..]).map_err(invalid_data_error)
     }
 
