@@ -17,12 +17,13 @@
 
 mod connection;
 
-use self::connection::Connection;
-
-use lazy_static::lazy_static;
 use std::fs::File;
 use std::io::Result;
 use std::sync::Mutex;
+
+use lazy_static::lazy_static;
+
+use self::connection::Connection;
 
 /// Sends a heartbeat information to the standard Fleetspeak client.
 ///

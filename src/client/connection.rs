@@ -3,13 +3,15 @@
 // Use of this source code is governed by an MIT-style license that can be found
 // in the LICENSE file or at https://opensource.org/licenses/MIT.
 
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use fleetspeak_proto::common::{Message, Address};
-use fleetspeak_proto::channel::{StartupData};
-use prost;
-use prost_types;
 use std::io::{Read, Write, Result};
 use std::marker::{Send, Sync};
+
+use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use prost;
+use prost_types;
+
+use fleetspeak_proto::common::{Message, Address};
+use fleetspeak_proto::channel::{StartupData};
 
 /// A Fleetspeak client connection object.
 ///
