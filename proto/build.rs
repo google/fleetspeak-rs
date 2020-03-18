@@ -9,6 +9,7 @@ use std::io::Result;
 
 const PROTOS: &'static [&'static str] = &[
     "fleetspeak/fleetspeak/src/common/proto/fleetspeak/common.proto",
+    "fleetspeak/fleetspeak/src/client/channel/proto/fleetspeak_channel/channel.proto",
 ];
 
 const INCLUDES: &'static [&'static str] = &[
