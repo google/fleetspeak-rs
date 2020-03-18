@@ -4,13 +4,14 @@
 // in the LICENSE file or at https://opensource.org/licenses/MIT.
 mod connection;
 
-use self::connection::{Connection};
+use self::connection::Connection;
 
 use lazy_static::lazy_static;
-use std::io::{Result};
+use std::fs::File;
+use std::io::Result;
 use std::sync::Mutex;
 
-fn open(var: &str) -> std::fs::File {
+fn open(var: &str) -> File {
     let fd = std::env::var(var)
         .expect(&format!("invalid variable `{}`", var))
         .parse()
@@ -23,7 +24,7 @@ fn open(var: &str) -> std::fs::File {
 }
 
 lazy_static! {
-    static ref CONNECTION: Mutex<Connection<std::fs::File, std::fs::File>> = {
+    static ref CONNECTION: Mutex<Connection<File, File>> = {
         let input = open("FLEETSPEAK_COMMS_CHANNEL_INFD");
         let output = open("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
 
@@ -56,7 +57,7 @@ where
 
 fn connected<F, T>(f: F) -> Result<T>
 where
-    F: FnOnce(&mut Connection<std::fs::File, std::fs::File>) -> Result<T>
+    F: FnOnce(&mut Connection<File, File>) -> Result<T>
 {
     let mut conn = CONNECTION.lock().expect("poisoned connection mutex");
     f(&mut conn)
