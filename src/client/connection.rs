@@ -11,6 +11,13 @@ use prost_types;
 use std::io::{Read, Write, Result};
 use std::marker::{Send, Sync};
 
+/// A Fleetspeak client connection object.
+///
+/// This connection owns two buffers: one for input and one for output. Usually,
+/// one does not want to instantiate connection object themselves. Since the
+/// Fleetspeak client will spawn the service process and provide it with file
+/// descriptors to talk to, for user convenience there is a standard global
+/// Fleetspeak client connection object that uses these descriptors.
 pub struct Connection<R, W> {
     input: R,
     output: W,
@@ -18,6 +25,11 @@ pub struct Connection<R, W> {
 
 impl<R: Read, W: Write> Connection<R, W> {
 
+    /// Creates a new Fleetspeak connection.
+    ///
+    /// This function will perform a handshake procedure in order to verify
+    /// correctness of the input and the output buffers. If the handshake
+    /// procedure fails, an error is reported.
     pub fn new(input: R, output: W) -> Result<Self> {
         let mut conn = Connection {
             input: input,
@@ -28,6 +40,14 @@ impl<R: Read, W: Write> Connection<R, W> {
         Ok(conn)
     }
 
+    /// Sends a heartbeat information through this connection.
+    ///
+    /// All client services should heartbeat from time to time. Otherwise, from
+    /// the Fleetspeak perspective, the service is unresponsive and should be
+    /// restarted.
+    ///
+    /// The exact frequency of the required heartbeat is defined in the service
+    /// configuration file.
     pub fn heartbeat(&mut self) -> Result<()> {
         let msg = Message {
             message_type: String::from("Heartbeat"),
@@ -41,6 +61,14 @@ impl<R: Read, W: Write> Connection<R, W> {
         self.emit(msg)
     }
 
+    /// Sends the startup information through this connection.
+    ///
+    /// All clients are required to send this information on startup. If the
+    /// client does not receive this information quickly enough, the service
+    /// will be killed.
+    ///
+    /// The `version` string should contain a self-reported version of the
+    /// service. This data is used primarily for statistics.
     pub fn startup(&mut self, version: &str) -> Result<()> {
         let data = StartupData {
             pid: std::process::id() as i64,
@@ -66,6 +94,11 @@ impl<R: Read, W: Write> Connection<R, W> {
         self.emit(msg)
     }
 
+    /// Sends the message to the Fleetspeak server through this connection.
+    ///
+    /// The message is sent to the server-side `service` and tagged with the
+    /// `kind` type. Note that this message type is rather irrelevant for
+    /// Fleetspeak and it is up to the service what to do with this information.
     pub fn send<M>(&mut self, service: &str, kind: &str, data: M) -> Result<()>
     where
         M: prost::Message,
@@ -89,6 +122,11 @@ impl<R: Read, W: Write> Connection<R, W> {
         self.emit(msg)
     }
 
+    /// Receives the message from the Fleetspeak server through this connection.
+    ///
+    /// This function will block until there is a message to be read in the
+    /// input. Errors are reported in case of any I/O failure or if the read
+    /// message was malformed (e.g. it cannot be parsed to the expected type).
     pub fn receive<M>(&mut self) -> Result<M>
     where
         M: prost::Message + Default,
@@ -107,6 +145,14 @@ impl<R: Read, W: Write> Connection<R, W> {
         prost::Message::decode(&data.value[..]).map_err(invalid_data_error)
     }
 
+    /// Emits a raw Fleetspeak message to the server through this connection.
+    ///
+    /// This method does not perform any validation of the message being emitted
+    /// and assumes that all the required fields are present.
+    ///
+    /// Note that this call will fail only if the message cannot be written to
+    /// the output or cannot be properly encoded but will succeed even if the
+    /// message is not what the server expects.
     fn emit(&mut self, msg: Message) -> Result<()> {
         let mut buf = Vec::new();
         prost::Message::encode(&msg, &mut buf).map_err(invalid_data_error)?;
@@ -119,6 +165,11 @@ impl<R: Read, W: Write> Connection<R, W> {
         Ok(())
     }
 
+    /// Collects a raw Fleetspeeak message from this connection.
+    ///
+    /// This function will block until there is a message to be read from the
+    /// input. It will fail in case of any I/O error or if the message cannot
+    /// be parsed as a Fleetspeak message.
     fn collect(&mut self) -> Result<Message> {
         let len = self.input.read_u32::<LittleEndian>()? as usize;
         let mut buf = vec!(0; len);
@@ -128,6 +179,7 @@ impl<R: Read, W: Write> Connection<R, W> {
         prost::Message::decode(&buf[..]).map_err(invalid_data_error)
     }
 
+    /// Executes the handshake procedure.
     fn handshake(&mut self) -> Result<()> {
         self.write_magic()?;
         self.output.flush()?;
@@ -136,12 +188,14 @@ impl<R: Read, W: Write> Connection<R, W> {
         Ok(())
     }
 
+    /// Writes the Fleetspeak magic to the output buffer.
     fn write_magic(&mut self) -> Result<()> {
         self.output.write_u32::<LittleEndian>(MAGIC)?;
 
         Ok(())
     }
 
+    /// Reads the Fleetspeak magic from the input buffer.
     fn read_magic(&mut self) -> Result<()> {
         let magic = self.input.read_u32::<LittleEndian>()?;
         if magic != MAGIC {
@@ -153,6 +207,8 @@ impl<R: Read, W: Write> Connection<R, W> {
     }
 }
 
+// TODO: Improve error handling.
+/// Converts a given error about malformed data to the standard I/O error.
 fn invalid_data_error<E>(err: E) -> std::io::Error
 where
     E: Into<Box<dyn std::error::Error + Send + Sync>>,
