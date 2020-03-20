@@ -6,16 +6,23 @@
 use std::error::{Error};
 use std::fmt::{Display, Formatter};
 
+/// An error type for failures that occurred when receiving a message.
 #[derive(Debug)]
 pub enum ReadError {
+    /// An I/O error occurred when reading from the input stream.
     Input(std::io::Error),
+    /// An error occurred when decoding bytes of the proto message.
     Decode(prost::DecodeError),
+    /// An invalid magic number has been read from the input stream.
     Magic(u32),
 }
 
+/// An error type for failures that occured when sending a message.
 #[derive(Debug)]
 pub enum WriteError {
+    /// An I/O error occurred when writing to the output stream.
     Output(std::io::Error),
+    /// An error occurred when encoding the proto message to bytes.
     Encode(prost::EncodeError),
 }
 
