@@ -3,6 +3,7 @@
 // Use of this source code is governed by an MIT-style license that can be found
 // in the LICENSE file or at https://opensource.org/licenses/MIT.
 
+use std::error::{Error};
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug)]
@@ -39,6 +40,31 @@ impl Display for WriteError {
         match *self {
             Output(ref err) => write!(fmt, "output error: {}", err),
             Encode(ref err) => write!(fmt, "proto encoding error: {}", err),
+        }
+    }
+}
+
+impl Error for ReadError {
+
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use ReadError::*;
+
+        match *self {
+            Input(ref err) => Some(err),
+            Decode(ref err) => Some(err),
+            Magic(_) => None,
+        }
+    }
+}
+
+impl Error for WriteError {
+
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        use WriteError::*;
+
+        match *self {
+            Output(ref err) => Some(err),
+            Encode(ref err) => Some(err),
         }
     }
 }
