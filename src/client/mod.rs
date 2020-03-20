@@ -16,6 +16,7 @@
 //! that it did not get stuck.
 
 mod connection;
+mod error;
 
 use std::fs::File;
 use std::io::Result;
