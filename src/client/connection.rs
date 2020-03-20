@@ -3,8 +3,7 @@
 // Use of this source code is governed by an MIT-style license that can be found
 // in the LICENSE file or at https://opensource.org/licenses/MIT.
 
-use std::io::{Read, Write, Result};
-use std::marker::{Send, Sync};
+use std::io::{Read, Write};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use prost;
@@ -12,6 +11,8 @@ use prost_types;
 
 use fleetspeak_proto::common::{Message, Address};
 use fleetspeak_proto::channel::{StartupData};
+
+use super::{ReadError, WriteError};
 
 /// A Fleetspeak client connection object.
 ///
@@ -32,7 +33,7 @@ impl<R: Read, W: Write> Connection<R, W> {
     /// This function will perform a handshake procedure in order to verify
     /// correctness of the input and the output buffers. If the handshake
     /// procedure fails, an error is reported.
-    pub fn new(input: R, output: W) -> Result<Self> {
+    pub fn new(input: R, output: W) -> std::io::Result<Self> {
         let mut conn = Connection {
             input: input,
             output: output,
@@ -50,7 +51,7 @@ impl<R: Read, W: Write> Connection<R, W> {
     ///
     /// The exact frequency of the required heartbeat is defined in the service
     /// configuration file.
-    pub fn heartbeat(&mut self) -> Result<()> {
+    pub fn heartbeat(&mut self) -> Result<(), WriteError> {
         let msg = Message {
             message_type: String::from("Heartbeat"),
             destination: Some(Address {
@@ -71,14 +72,14 @@ impl<R: Read, W: Write> Connection<R, W> {
     ///
     /// The `version` string should contain a self-reported version of the
     /// service. This data is used primarily for statistics.
-    pub fn startup(&mut self, version: &str) -> Result<()> {
+    pub fn startup(&mut self, version: &str) -> Result<(), WriteError> {
         let data = StartupData {
             pid: std::process::id() as i64,
             version: String::from(version),
         };
 
         let mut buf = Vec::new();
-        prost::Message::encode(&data, &mut buf).map_err(invalid_data_error)?;
+        prost::Message::encode(&data, &mut buf)?;
 
         let msg = Message {
             message_type: String::from("StartupData"),
@@ -101,12 +102,12 @@ impl<R: Read, W: Write> Connection<R, W> {
     /// The message is sent to the server-side `service` and tagged with the
     /// `kind` type. Note that this message type is rather irrelevant for
     /// Fleetspeak and it is up to the service what to do with this information.
-    pub fn send<M>(&mut self, service: &str, kind: &str, data: M) -> Result<()>
+    pub fn send<M>(&mut self, service: &str, kind: &str, data: M) -> Result<(), WriteError>
     where
         M: prost::Message,
     {
         let mut buf = Vec::new();
-        prost::Message::encode(&data, &mut buf).map_err(invalid_data_error)?;
+        prost::Message::encode(&data, &mut buf)?;
 
         let msg = Message {
             message_type: String::from(kind),
@@ -129,7 +130,7 @@ impl<R: Read, W: Write> Connection<R, W> {
     /// This function will block until there is a message to be read in the
     /// input. Errors are reported in case of any I/O failure or if the read
     /// message was malformed (e.g. it cannot be parsed to the expected type).
-    pub fn receive<M>(&mut self) -> Result<M>
+    pub fn receive<M>(&mut self) -> Result<M, ReadError>
     where
         M: prost::Message + Default,
     {
@@ -144,7 +145,7 @@ impl<R: Read, W: Write> Connection<R, W> {
             None => return Ok(Default::default()),
         };
 
-        prost::Message::decode(&data.value[..]).map_err(invalid_data_error)
+        Ok(prost::Message::decode(&data.value[..])?)
     }
 
     /// Emits a raw Fleetspeak message to the server through this connection.
@@ -155,9 +156,9 @@ impl<R: Read, W: Write> Connection<R, W> {
     /// Note that this call will fail only if the message cannot be written to
     /// the output or cannot be properly encoded but will succeed even if the
     /// message is not what the server expects.
-    fn emit(&mut self, msg: Message) -> Result<()> {
+    fn emit(&mut self, msg: Message) -> Result<(), WriteError> {
         let mut buf = Vec::new();
-        prost::Message::encode(&msg, &mut buf).map_err(invalid_data_error)?;
+        prost::Message::encode(&msg, &mut buf)?;
 
         self.output.write_u32::<LittleEndian>(buf.len() as u32)?;
         self.output.write(&buf)?;
@@ -172,17 +173,17 @@ impl<R: Read, W: Write> Connection<R, W> {
     /// This function will block until there is a message to be read from the
     /// input. It will fail in case of any I/O error or if the message cannot
     /// be parsed as a Fleetspeak message.
-    fn collect(&mut self) -> Result<Message> {
+    fn collect(&mut self) -> Result<Message, ReadError> {
         let len = self.input.read_u32::<LittleEndian>()? as usize;
         let mut buf = vec!(0; len);
         self.input.read_exact(&mut buf[..])?;
         self.read_magic()?;
 
-        prost::Message::decode(&buf[..]).map_err(invalid_data_error)
+        Ok(prost::Message::decode(&buf[..])?)
     }
 
     /// Executes the handshake procedure.
-    fn handshake(&mut self) -> Result<()> {
+    fn handshake(&mut self) -> std::io::Result<()> {
         self.write_magic()?;
         self.output.flush()?;
         self.read_magic()?;
@@ -191,31 +192,21 @@ impl<R: Read, W: Write> Connection<R, W> {
     }
 
     /// Writes the Fleetspeak magic to the output buffer.
-    fn write_magic(&mut self) -> Result<()> {
+    fn write_magic(&mut self) -> Result<(), WriteError> {
         self.output.write_u32::<LittleEndian>(MAGIC)?;
 
         Ok(())
     }
 
     /// Reads the Fleetspeak magic from the input buffer.
-    fn read_magic(&mut self) -> Result<()> {
+    fn read_magic(&mut self) -> Result<(), ReadError> {
         let magic = self.input.read_u32::<LittleEndian>()?;
         if magic != MAGIC {
-            let err = invalid_data_error(format!("invalid magic `{}`", magic));
-            return Err(err);
+            return Err(ReadError::Magic(magic));
         }
 
         Ok(())
     }
-}
-
-// TODO: Improve error handling.
-/// Converts a given error about malformed data to the standard I/O error.
-fn invalid_data_error<E>(err: E) -> std::io::Error
-where
-    E: Into<Box<dyn std::error::Error + Send + Sync>>,
-{
-    return std::io::Error::new(std::io::ErrorKind::InvalidData, err);
 }
 
 const MAGIC: u32 = 0xf1ee1001;

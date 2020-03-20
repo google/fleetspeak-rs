@@ -19,12 +19,12 @@ mod connection;
 mod error;
 
 use std::fs::File;
-use std::io::Result;
 use std::sync::Mutex;
 
 use lazy_static::lazy_static;
 
 use self::connection::Connection;
+pub use self::error::{ReadError, WriteError};
 
 /// Sends a heartbeat information to the standard Fleetspeak client.
 ///
@@ -33,7 +33,7 @@ use self::connection::Connection;
 ///
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
-pub fn heartbeat() -> Result<()> {
+pub fn heartbeat() -> Result<(), WriteError> {
     connected(|conn| conn.heartbeat())
 }
 
@@ -45,7 +45,7 @@ pub fn heartbeat() -> Result<()> {
 ///
 /// The `version` string should contain a self-reported version of the service.
 /// This data is used primarily for statistics.
-pub fn startup(version: &str) -> Result<()> {
+pub fn startup(version: &str) -> Result<(), WriteError> {
     connected(|conn| conn.startup(version))
 }
 
@@ -54,7 +54,7 @@ pub fn startup(version: &str) -> Result<()> {
 /// The message is sent to the server-side `service` and tagged with the `kind`
 /// type. Note that this message type is rather irrelevant for Fleetspeak and
 /// it is up to the service what to do with this information.
-pub fn send<M>(service: &str, kind: &str, data: M) -> Result<()>
+pub fn send<M>(service: &str, kind: &str, data: M) -> Result<(), WriteError>
 where
     M: prost::Message,
 {
@@ -66,7 +66,7 @@ where
 /// This function will block until there is a message to be read from the input.
 /// Errors are reported in case of any I/O failure or if the read message was
 /// malformed (e.g. it cannot be parsed to the expected type).
-pub fn receive<M>() -> Result<M>
+pub fn receive<M>() -> Result<M, ReadError>
 where
     M: prost::Message + Default,
 {
@@ -80,9 +80,9 @@ where
 /// result. This should not be a problem in practice, because mutex poisoning
 /// is a result of one of the threads being aborted. In case of a such scenario,
 /// it is likely the service needs to be restarted anyway.
-fn connected<F, T>(f: F) -> Result<T>
+fn connected<F, T, E>(f: F) -> Result<T, E>
 where
-    F: FnOnce(&mut Connection<File, File>) -> Result<T>
+    F: FnOnce(&mut Connection<File, File>) -> Result<T, E>
 {
     let mut conn = CONNECTION.lock().expect("poisoned connection mutex");
     f(&mut conn)
