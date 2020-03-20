@@ -96,3 +96,31 @@ impl From<prost::EncodeError> for WriteError {
         WriteError::Encode(err)
     }
 }
+
+impl From<ReadError> for std::io::Error {
+
+    fn from(err: ReadError) -> std::io::Error {
+        use ReadError::*;
+
+        match err {
+            Input(err) => err,
+            Decode(err) => err.into(),
+            Magic(magic) => {
+                let err = format!("invalid magic: {}", magic);
+                std::io::Error::new(std::io::ErrorKind::InvalidData, err)
+            },
+        }
+    }
+}
+
+impl From<WriteError> for std::io::Error {
+
+    fn from(err: WriteError) -> std::io::Error {
+        use WriteError::*;
+
+        match err {
+            Output(err) => err,
+            Encode(err) => err.into(),
+        }
+    }
+}
