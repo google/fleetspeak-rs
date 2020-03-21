@@ -59,6 +59,18 @@ pub fn startup(version: &str) -> Result<(), WriteError> {
 ///
 /// In case of any I/O failure or malformed message (e.g. due to encoding
 /// problems), an error is reported.
+///
+/// # Examples
+///
+/// ```no_run
+/// use fleetspeak::client::Packet;
+///
+/// fleetspeak::client::send(Packet {
+///     service: String::from("example"),
+///     kind: None,
+///     data: String::from("Hello, World!"),
+/// }).expect("failed to send the packet");
+/// ```
 pub fn send<M>(packet: Packet<M>) -> Result<(), WriteError>
 where
     M: prost::Message,
@@ -77,6 +89,15 @@ where
 /// or when some fields are not being present), an error is reported.
 ///
 /// [`collect`]: fn.collect.html
+///
+/// # Examples
+///
+/// ```no_run
+/// match fleetspeak::client::receive::<String>() {
+///     Ok(packet) => println!("Hello, {}!", packet.data),
+///     Err(error) => eprintln!("failed to receive the packet: {}", error),
+/// }
+/// ```
 pub fn receive<M>() -> Result<Packet<M>, ReadError>
 where
     M: prost::Message + Default,
@@ -98,6 +119,17 @@ where
 /// or when some fields are not being present), an error is reported.
 ///
 /// [`receive`]: fn.receive.html
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::time::Duration;
+///
+/// match fleetspeak::client::collect::<String>(Duration::from_secs(1)) {
+///     Ok(packet) => println!("Hello, {}!", packet.data),
+///     Err(error) => eprintln!("failed to collected the packet: {}", error),
+/// }
+/// ```
 pub fn collect<M>(rate: Duration) -> Result<Packet<M>, std::io::Error>
 where
     M: prost::Message + Default + 'static,

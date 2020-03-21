@@ -30,6 +30,7 @@ pub enum WriteError {
 
 impl ReadError {
 
+    /// Converts an error indicating malformed proto message to `ReadError`.
     pub fn malformed<E>(err: E) -> ReadError
     where
         E: Into<Box<dyn Error + Send + Sync>>,
