@@ -142,14 +142,21 @@ impl<R: Read, W: Write> Connection<R, W> {
     {
         let msg = self.collect()?;
 
+        // While missing source address might not be consider a critical error
+        // in most cases, for our own sanity we just disregard such messages.
+        // Allowing such behaviour might indicate a more severe problem with
+        // Fleetspeak and ignoring it simply masks the issue. This might be
+        // reconsidered in the future.
+        let service = match msg.source {
+            Some(addr) => addr.service_name,
+            None => return Err(ReadError::malformed("missing source address")),
+        };
+
         // It is not clear what is the best approach here. If there is no data,
         // should we error-out or return a default value? For the time being we
         // stick to the default approach, but if this proves to be not working
         // well in practice, it might be reconsidered.
         let data = msg.data.unwrap_or_else(Default::default);
-
-        // TODO: Messages with missing services should be considered incorrect.
-        let service = msg.source.unwrap_or_else(Default::default).service_name;
 
         Ok(Packet {
             service: service,
