@@ -149,7 +149,7 @@ impl<R: Read, W: Write> Connection<R, W> {
     where
         M: prost::Message + Default,
     {
-        let msg = self.collect()?;
+        let msg = self.accept()?;
 
         // While missing source address might not be consider a critical error
         // in most cases, for our own sanity we just disregard such messages.
@@ -194,12 +194,12 @@ impl<R: Read, W: Write> Connection<R, W> {
         Ok(())
     }
 
-    /// Collects a raw Fleetspeeak message from this connection.
+    /// Accepts a raw Fleetspeeak message from this connection.
     ///
     /// This function will block until there is a message to be read from the
     /// input. It will fail in case of any I/O error or if the message cannot
     /// be parsed as a Fleetspeak message.
-    fn collect(&mut self) -> Result<Message, ReadError> {
+    fn accept(&mut self) -> Result<Message, ReadError> {
         let len = self.input.read_u32::<LittleEndian>()? as usize;
         let mut buf = vec!(0; len);
         self.input.read_exact(&mut buf[..])?;
