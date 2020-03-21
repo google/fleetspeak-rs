@@ -20,6 +20,7 @@ mod error;
 
 use std::fs::File;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use lazy_static::lazy_static;
 
@@ -72,6 +73,38 @@ where
     M: prost::Message + Default,
 {
     connected(|conn| conn.receive())
+}
+
+pub fn collect<M>(rate: Duration) -> Result<Packet<M>, std::io::Error>
+where
+    M: prost::Message + Default + 'static,
+{
+    let (sender, receiver) = std::sync::mpsc::channel();
+
+    std::thread::spawn(move || {
+        let packet = receive();
+
+        // We do not care whether the packet was sent, because this call can
+        // fail only if the receiver closed itself. Since the receiver loops
+        // indefinitely, it closes only in case there was a heartbeat error. But
+        // at that point we are no longer interested in the packet.
+        let _ = sender.send(packet);
+    });
+
+    loop {
+        use std::sync::mpsc::TryRecvError::*;
+
+        // The sender will block indefinitely until there is a message to pick,
+        // so the disconnection branch is not possible.
+        match receiver.try_recv() {
+            Ok(packet) => return Ok(packet?),
+            Err(Empty) => (),
+            Err(Disconnected) => panic!(),
+        }
+
+        heartbeat()?;
+        std::thread::sleep(rate);
+    }
 }
 
 /// Executes the given function with the standard client connection.
