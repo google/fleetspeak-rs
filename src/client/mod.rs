@@ -9,7 +9,7 @@
 //! services. Each of these functions operates on a global connection object
 //! that is lazily established. If this global connection cannot be established,
 //! the library will panic (because without this connection Fleetspeak will shut
-//! down the service anyway).
+//! the service down anyway).
 //!
 //! Note that each service should send startup information upon its inception
 //! and continue to heartbeat from time to time to notify the Fleetspeak client
@@ -20,14 +20,14 @@ mod error;
 
 use std::fs::File;
 use std::sync::Mutex;
+use std::time::Duration;
 
 use lazy_static::lazy_static;
 
-use self::connection::Connection;
 pub use self::connection::Packet;
 pub use self::error::{ReadError, WriteError};
 
-/// Sends a heartbeat information to the standard Fleetspeak client.
+/// Sends a heartbeat signal to the Fleetspeak client.
 ///
 /// All client services should heartbeat from time to time. Otherwise, from the
 /// Fleetspeak perspective, the service is unresponsive and should be restarted.
@@ -35,10 +35,10 @@ pub use self::error::{ReadError, WriteError};
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
 pub fn heartbeat() -> Result<(), WriteError> {
-    connected(|conn| conn.heartbeat())
+    locked(&CONNECTION.output, |buf| self::connection::heartbeat(buf))
 }
 
-/// Sends the startup information to the standard Fleetspeak client.
+/// Sends a system message with startup information to the Fleetspeak client.
 ///
 /// All clients are required to send this information on startup. If the client
 /// does not receive this information quickly enough, the service will be
@@ -47,56 +47,128 @@ pub fn heartbeat() -> Result<(), WriteError> {
 /// The `version` string should contain a self-reported version of the service.
 /// This data is used primarily for statistics.
 pub fn startup(version: &str) -> Result<(), WriteError> {
-    connected(|conn| conn.startup(version))
+    locked(&CONNECTION.output, |buf| self::connection::startup(buf, version))
 }
 
-/// Sends the message to the Fleetspeak server through the standard client.
+/// Sends the message to the Fleetspeak server.
 ///
-/// The message is sent to the server-side `service` and tagged with the `kind`
-/// type. Note that this message type is rather irrelevant for Fleetspeak and
-/// it is up to the service what to do with this information.
+/// The message is delivered to the server-side service as specified by the
+/// packet and optionally tagged with a type if specified. This optional message
+/// type is irrelevant for Fleetspeak but might be useful for the service the
+/// message is delivered to.
+///
+/// In case of any I/O failure or malformed message (e.g. due to encoding
+/// problems), an error is reported.
 pub fn send<M>(packet: Packet<M>) -> Result<(), WriteError>
 where
     M: prost::Message,
 {
-    connected(|conn| conn.send(packet))
+    locked(&CONNECTION.output, |buf| self::connection::send(buf, packet))
 }
 
-/// Receives the message from the Fleetspeak server through the standard client.
+/// Receives the message from the Fleetspeak server.
 ///
 /// This function will block until there is a message to be read from the input.
-/// Errors are reported in case of any I/O failure or if the read message was
-/// malformed (e.g. it cannot be parsed to the expected type).
+/// Note that in particular it means your service will be unable to heartbeat
+/// properly. If you are not expecting the message to arrive quickly, you should
+/// use [`collect`] instead.
+///
+/// In case of any I/O failure or malformed message (e.g. due to parsing issues
+/// or when some fields are not being present), an error is reported.
+///
+/// [`collect`]: fn.collect.html
 pub fn receive<M>() -> Result<Packet<M>, ReadError>
 where
     M: prost::Message + Default,
 {
-    connected(|conn| conn.receive())
+    locked(&CONNECTION.input, |buf| self::connection::receive(buf))
 }
 
-/// Executes the given function with the standard client connection.
+/// Collects the message from the Fleetspeak server.
 ///
-/// Note that the standard client connection object is guarded by a mutex. It
-/// might happen that the mutex becomes poisoned and this call will panic in
-/// result. This should not be a problem in practice, because mutex poisoning
-/// is a result of one of the threads being aborted. In case of a such scenario,
-/// it is likely the service needs to be restarted anyway.
-fn connected<F, T, E>(f: F) -> Result<T, E>
+/// Unlike [`receive`], `collect` will send heartbeat signals while polling for
+/// the message at the specified `rate`.
+///
+/// This function is useful in the main loop of your service when it is not
+/// supposed to do anything until a request from the server arrives. If your
+/// service is actually awaiting for a specific message to come, you should
+/// use [`receive`] instead.
+///
+/// In case of any I/O failure or malformed message (e.g. due to parsing issues
+/// or when some fields are not being present), an error is reported.
+///
+/// [`receive`]: fn.receive.html
+pub fn collect<M>(rate: Duration) -> Result<Packet<M>, std::io::Error>
 where
-    F: FnOnce(&mut Connection<File, File>) -> Result<T, E>
+    M: prost::Message + Default + 'static,
 {
-    let mut conn = CONNECTION.lock().expect("poisoned connection mutex");
-    f(&mut conn)
+    let (sender, receiver) = std::sync::mpsc::channel();
+
+    std::thread::spawn(move || {
+        let packet = receive();
+
+        // We do not care whether the packet was sent, because this call can
+        // fail only if the receiver closed itself. Since the receiver loops
+        // indefinitely, it closes only in case there was a heartbeat error. But
+        // at that point we are no longer interested in the packet.
+        let _ = sender.send(packet);
+    });
+
+    loop {
+        use std::sync::mpsc::TryRecvError::*;
+
+        // The sender will block indefinitely until there is a message to pick,
+        // so the disconnection branch is not possible.
+        match receiver.try_recv() {
+            Ok(packet) => return Ok(packet?),
+            Err(Empty) => (),
+            Err(Disconnected) => panic!(),
+        }
+
+        heartbeat()?;
+        std::thread::sleep(rate);
+    }
+}
+
+/// A connection to the Fleetspeak client.
+///
+/// The connection is realized through two files (specified by descriptors given
+/// by the Fleetspeak client as environment variables): input and output. Each
+/// of these files is guarded by a separate mutex to allow writing (e.g. for
+/// sending heartbeat signals) when another thread might be busy with reading
+/// messages.
+struct Connection {
+    input: Mutex<File>,
+    output: Mutex<File>,
 }
 
 lazy_static! {
-    static ref CONNECTION: Mutex<Connection<File, File>> = {
-        let input = open("FLEETSPEAK_COMMS_CHANNEL_INFD");
-        let output = open("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
+    static ref CONNECTION: Connection = {
+        let mut input = open("FLEETSPEAK_COMMS_CHANNEL_INFD");
+        let mut output = open("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
 
-        let conn = Connection::new(input, output).expect("handshake failure");
-        Mutex::new(conn)
+        use self::connection::handshake;
+        handshake(&mut input, &mut output).expect("handshake failure");
+
+        Connection {
+            input: Mutex::new(input),
+            output: Mutex::new(output),
+        }
     };
+}
+
+/// Executes the given function with a file extracted from the mutex.
+///
+/// It might happen that the mutex becomes poisoned and this call will panic in
+/// result. This should not be a problem in practice, because mutex poisoning
+/// is a result of one of the threads being aborted. In case of a such scenario,
+/// it is likely the service needs to be restarted anyway.
+fn locked<F, T, E>(mutex: &Mutex<File>, f: F) -> Result<T, E>
+where
+    F: FnOnce(&mut File) -> Result<T, E>
+{
+    let mut file = mutex.lock().expect("poisoned connection mutex");
+    f(&mut file)
 }
 
 /// Opens a file object pointed by an environment variable.
