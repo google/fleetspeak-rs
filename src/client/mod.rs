@@ -9,7 +9,7 @@
 //! services. Each of these functions operates on a global connection object
 //! that is lazily established. If this global connection cannot be established,
 //! the library will panic (because without this connection Fleetspeak will shut
-//! down the service anyway).
+//! the service down anyway).
 //!
 //! Note that each service should send startup information upon its inception
 //! and continue to heartbeat from time to time to notify the Fleetspeak client
@@ -27,7 +27,7 @@ use lazy_static::lazy_static;
 pub use self::connection::Packet;
 pub use self::error::{ReadError, WriteError};
 
-/// Sends a heartbeat information to the standard Fleetspeak client.
+/// Sends a heartbeat signal to the Fleetspeak client.
 ///
 /// All client services should heartbeat from time to time. Otherwise, from the
 /// Fleetspeak perspective, the service is unresponsive and should be restarted.
@@ -38,7 +38,7 @@ pub fn heartbeat() -> Result<(), WriteError> {
     locked(&CONNECTION.output, |buf| self::connection::heartbeat(buf))
 }
 
-/// Sends the startup information to the standard Fleetspeak client.
+/// Sends a system message with startup information to the Fleetspeak client.
 ///
 /// All clients are required to send this information on startup. If the client
 /// does not receive this information quickly enough, the service will be
@@ -50,11 +50,15 @@ pub fn startup(version: &str) -> Result<(), WriteError> {
     locked(&CONNECTION.output, |buf| self::connection::startup(buf, version))
 }
 
-/// Sends the message to the Fleetspeak server through the standard client.
+/// Sends the message to the Fleetspeak server.
 ///
-/// The message is sent to the server-side `service` and tagged with the `kind`
-/// type. Note that this message type is rather irrelevant for Fleetspeak and
-/// it is up to the service what to do with this information.
+/// The message is delivered to the server-side service as specified by the
+/// packet and optionally tagged with a type if specified. This optional message
+/// type is irrelevant for Fleetspeak but might be useful for the service the
+/// message is delivered to.
+///
+/// In case of any I/O failure or malformed message (e.g. due to encoding
+/// problems), an error is reported.
 pub fn send<M>(packet: Packet<M>) -> Result<(), WriteError>
 where
     M: prost::Message,
