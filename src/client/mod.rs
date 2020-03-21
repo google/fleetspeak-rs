@@ -106,20 +106,6 @@ where
     }
 }
 
-/// Executes the given function with a file extracted from the mutex.
-///
-/// It might happen that the mutex becomes poisoned and this call will panic in
-/// result. This should not be a problem in practice, because mutex poisoning
-/// is a result of one of the threads being aborted. In case of a such scenario,
-/// it is likely the service needs to be restarted anyway.
-fn locked<F, T, E>(mutex: &Mutex<File>, f: F) -> Result<T, E>
-where
-    F: FnOnce(&mut File) -> Result<T, E>
-{
-    let mut file = mutex.lock().expect("poisoned connection mutex");
-    f(&mut file)
-}
-
 struct Connection {
     input: Mutex<File>,
     output: Mutex<File>,
@@ -138,6 +124,20 @@ lazy_static! {
             output: Mutex::new(output),
         }
     };
+}
+
+/// Executes the given function with a file extracted from the mutex.
+///
+/// It might happen that the mutex becomes poisoned and this call will panic in
+/// result. This should not be a problem in practice, because mutex poisoning
+/// is a result of one of the threads being aborted. In case of a such scenario,
+/// it is likely the service needs to be restarted anyway.
+fn locked<F, T, E>(mutex: &Mutex<File>, f: F) -> Result<T, E>
+where
+    F: FnOnce(&mut File) -> Result<T, E>
+{
+    let mut file = mutex.lock().expect("poisoned connection mutex");
+    f(&mut file)
 }
 
 /// Opens a file object pointed by an environment variable.
