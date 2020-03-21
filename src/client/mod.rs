@@ -24,7 +24,6 @@ use std::time::Duration;
 
 use lazy_static::lazy_static;
 
-use self::connection::Connection;
 pub use self::connection::Packet;
 pub use self::error::{ReadError, WriteError};
 
@@ -36,7 +35,7 @@ pub use self::error::{ReadError, WriteError};
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
 pub fn heartbeat() -> Result<(), WriteError> {
-    connected(|conn| conn.heartbeat())
+    locked(&CONNECTION.output, |buf| self::connection::heartbeat(buf))
 }
 
 /// Sends the startup information to the standard Fleetspeak client.
@@ -48,7 +47,7 @@ pub fn heartbeat() -> Result<(), WriteError> {
 /// The `version` string should contain a self-reported version of the service.
 /// This data is used primarily for statistics.
 pub fn startup(version: &str) -> Result<(), WriteError> {
-    connected(|conn| conn.startup(version))
+    locked(&CONNECTION.output, |buf| self::connection::startup(buf, version))
 }
 
 /// Sends the message to the Fleetspeak server through the standard client.
@@ -60,7 +59,7 @@ pub fn send<M>(packet: Packet<M>) -> Result<(), WriteError>
 where
     M: prost::Message,
 {
-    connected(|conn| conn.send(packet))
+    locked(&CONNECTION.output, |buf| self::connection::send(buf, packet))
 }
 
 /// Receives the message from the Fleetspeak server through the standard client.
@@ -72,7 +71,7 @@ pub fn receive<M>() -> Result<Packet<M>, ReadError>
 where
     M: prost::Message + Default,
 {
-    connected(|conn| conn.receive())
+    locked(&CONNECTION.input, |buf| self::connection::receive(buf))
 }
 
 pub fn collect<M>(rate: Duration) -> Result<Packet<M>, std::io::Error>
@@ -107,28 +106,37 @@ where
     }
 }
 
-/// Executes the given function with the standard client connection.
+/// Executes the given function with a file extracted from the mutex.
 ///
-/// Note that the standard client connection object is guarded by a mutex. It
-/// might happen that the mutex becomes poisoned and this call will panic in
+/// It might happen that the mutex becomes poisoned and this call will panic in
 /// result. This should not be a problem in practice, because mutex poisoning
 /// is a result of one of the threads being aborted. In case of a such scenario,
 /// it is likely the service needs to be restarted anyway.
-fn connected<F, T, E>(f: F) -> Result<T, E>
+fn locked<F, T, E>(mutex: &Mutex<File>, f: F) -> Result<T, E>
 where
-    F: FnOnce(&mut Connection<File, File>) -> Result<T, E>
+    F: FnOnce(&mut File) -> Result<T, E>
 {
-    let mut conn = CONNECTION.lock().expect("poisoned connection mutex");
-    f(&mut conn)
+    let mut file = mutex.lock().expect("poisoned connection mutex");
+    f(&mut file)
+}
+
+struct Connection {
+    input: Mutex<File>,
+    output: Mutex<File>,
 }
 
 lazy_static! {
-    static ref CONNECTION: Mutex<Connection<File, File>> = {
-        let input = open("FLEETSPEAK_COMMS_CHANNEL_INFD");
-        let output = open("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
+    static ref CONNECTION: Connection = {
+        let mut input = open("FLEETSPEAK_COMMS_CHANNEL_INFD");
+        let mut output = open("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
 
-        let conn = Connection::new(input, output).expect("handshake failure");
-        Mutex::new(conn)
+        use self::connection::handshake;
+        handshake(&mut input, &mut output).expect("handshake failure");
+
+        Connection {
+            input: Mutex::new(input),
+            output: Mutex::new(output),
+        }
     };
 }
 
