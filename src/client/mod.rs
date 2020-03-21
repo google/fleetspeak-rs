@@ -62,11 +62,17 @@ where
     locked(&CONNECTION.output, |buf| self::connection::send(buf, packet))
 }
 
-/// Receives the message from the Fleetspeak server through the standard client.
+/// Receives the message from the Fleetspeak server.
 ///
 /// This function will block until there is a message to be read from the input.
-/// Errors are reported in case of any I/O failure or if the read message was
-/// malformed (e.g. it cannot be parsed to the expected type).
+/// Note that in particular it means your service will be unable to heartbeat
+/// properly. If you are not expecting the message to arrive quickly, you should
+/// use [`collect`] instead.
+///
+/// In case of any I/O failure or malformed message (e.g. due to parsing issues
+/// or when some fields are not being present), an error is reported.
+///
+/// [`collect`]: fn.collect.html
 pub fn receive<M>() -> Result<Packet<M>, ReadError>
 where
     M: prost::Message + Default,
@@ -74,6 +80,20 @@ where
     locked(&CONNECTION.input, |buf| self::connection::receive(buf))
 }
 
+/// Collects the message from the Fleetspeak server.
+///
+/// Unlike [`receive`], `collect` will send heartbeat signals while polling for
+/// the message at the specified `rate`.
+///
+/// This function is useful in the main loop of your service when it is not
+/// supposed to do anything until a request from the server arrives. If your
+/// service is actually awaiting for a specific message to come, you should
+/// use [`receive`] instead.
+///
+/// In case of any I/O failure or malformed message (e.g. due to parsing issues
+/// or when some fields are not being present), an error is reported.
+///
+/// [`receive`]: fn.receive.html
 pub fn collect<M>(rate: Duration) -> Result<Packet<M>, std::io::Error>
 where
     M: prost::Message + Default + 'static,
