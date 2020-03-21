@@ -26,9 +26,18 @@ pub struct Connection<R, W> {
     output: W,
 }
 
+/// A Fleetspeak client communication packet.
+///
+/// This structure represents incoming or outgoing packet objects delivered by
+/// Fleetspeak. This is a simplified version of the underlying Protocol Buffers
+/// message that exposes too much irrelevant fields and makes the protocol easy
+/// to misuse.
 pub struct Packet<M> {
+    /// A name of the server-side service that sent or should receive the data.
     pub service: String,
+    /// An optional message type that can be used by the server-side service.
     pub kind: Option<String>,
+    /// A message to sent to the specified service.
     pub data: M,
 }
 
