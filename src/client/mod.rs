@@ -130,6 +130,13 @@ where
     }
 }
 
+/// A connection to the Fleetspeak client.
+///
+/// The connection is realized through two files (specified by descriptors given
+/// by the Fleetspeak client as environment variables): input and output. Each
+/// of these files is guarded by a separate mutex to allow writing (e.g. for
+/// sending heartbeat signals) when another thread might be busy with reading
+/// messages.
 struct Connection {
     input: Mutex<File>,
     output: Mutex<File>,
