@@ -13,6 +13,8 @@ pub enum ReadError {
     Input(std::io::Error),
     /// An error occurred when decoding bytes of the proto message.
     Decode(prost::DecodeError),
+    /// An error occurred because the decoded proto message was malformed.
+    Malformed(Box<dyn Error + Send + Sync>),
     /// An invalid magic number has been read from the input stream.
     Magic(u32),
 }
@@ -26,6 +28,16 @@ pub enum WriteError {
     Encode(prost::EncodeError),
 }
 
+impl ReadError {
+
+    pub fn malformed<E>(err: E) -> ReadError
+    where
+        E: Into<Box<dyn Error + Send + Sync>>,
+    {
+        ReadError::Malformed(err.into())
+    }
+}
+
 impl Display for ReadError {
 
     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
@@ -34,6 +46,7 @@ impl Display for ReadError {
         match *self {
             Input(ref err) => write!(fmt, "input error: {}", err),
             Decode(ref err) => write!(fmt, "proto decoding error: {}", err),
+            Malformed(ref err) => write!(fmt, "malformed proto: {}", err),
             Magic(magic) => write!(fmt, "invalid magic: {}", magic),
         }
     }
@@ -59,6 +72,7 @@ impl Error for ReadError {
         match *self {
             Input(ref err) => Some(err),
             Decode(ref err) => Some(err),
+            Malformed(ref err) => Some(err.as_ref()),
             Magic(_) => None,
         }
     }
@@ -112,6 +126,10 @@ impl From<ReadError> for std::io::Error {
         match err {
             Input(err) => err,
             Decode(err) => err.into(),
+            Malformed(err) => {
+                let err = format!("malformed proto: {}", err);
+                std::io::Error::new(std::io::ErrorKind::InvalidData, err)
+            },
             Magic(magic) => {
                 let err = format!("invalid magic: {}", magic);
                 std::io::Error::new(std::io::ErrorKind::InvalidData, err)

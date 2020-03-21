@@ -24,6 +24,7 @@ use std::sync::Mutex;
 use lazy_static::lazy_static;
 
 use self::connection::Connection;
+pub use self::connection::Packet;
 pub use self::error::{ReadError, WriteError};
 
 /// Sends a heartbeat information to the standard Fleetspeak client.
@@ -54,11 +55,11 @@ pub fn startup(version: &str) -> Result<(), WriteError> {
 /// The message is sent to the server-side `service` and tagged with the `kind`
 /// type. Note that this message type is rather irrelevant for Fleetspeak and
 /// it is up to the service what to do with this information.
-pub fn send<M>(service: &str, kind: &str, data: M) -> Result<(), WriteError>
+pub fn send<M>(packet: Packet<M>) -> Result<(), WriteError>
 where
     M: prost::Message,
 {
-    connected(|conn| conn.send(service, kind, data))
+    connected(|conn| conn.send(packet))
 }
 
 /// Receives the message from the Fleetspeak server through the standard client.
@@ -66,7 +67,7 @@ where
 /// This function will block until there is a message to be read from the input.
 /// Errors are reported in case of any I/O failure or if the read message was
 /// malformed (e.g. it cannot be parsed to the expected type).
-pub fn receive<M>() -> Result<M, ReadError>
+pub fn receive<M>() -> Result<Packet<M>, ReadError>
 where
     M: prost::Message + Default,
 {
