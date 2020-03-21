@@ -26,6 +26,12 @@ pub struct Connection<R, W> {
     output: W,
 }
 
+pub struct Packet<M> {
+    pub service: String,
+    pub kind: Option<String>,
+    pub data: M,
+}
+
 impl<R: Read, W: Write> Connection<R, W> {
 
     /// Creates a new Fleetspeak connection.
@@ -102,17 +108,17 @@ impl<R: Read, W: Write> Connection<R, W> {
     /// The message is sent to the server-side `service` and tagged with the
     /// `kind` type. Note that this message type is rather irrelevant for
     /// Fleetspeak and it is up to the service what to do with this information.
-    pub fn send<M>(&mut self, service: &str, kind: &str, data: M) -> Result<(), WriteError>
+    pub fn send<M>(&mut self, packet: Packet<M>) -> Result<(), WriteError>
     where
         M: prost::Message,
     {
         let mut buf = Vec::new();
-        prost::Message::encode(&data, &mut buf)?;
+        prost::Message::encode(&packet.data, &mut buf)?;
 
         let msg = Message {
-            message_type: String::from(kind),
+            message_type: packet.kind.unwrap_or_else(String::new),
             destination: Some(Address {
-                service_name: String::from(service),
+                service_name: packet.service,
                 ..Default::default()
             }),
             data: Some(prost_types::Any {
@@ -130,7 +136,7 @@ impl<R: Read, W: Write> Connection<R, W> {
     /// This function will block until there is a message to be read in the
     /// input. Errors are reported in case of any I/O failure or if the read
     /// message was malformed (e.g. it cannot be parsed to the expected type).
-    pub fn receive<M>(&mut self) -> Result<M, ReadError>
+    pub fn receive<M>(&mut self) -> Result<Packet<M>, ReadError>
     where
         M: prost::Message + Default,
     {
@@ -140,12 +146,16 @@ impl<R: Read, W: Write> Connection<R, W> {
         // should we error-out or return a default value? For the time being we
         // stick to the default approach, but if this proves to be not working
         // well in practice, it might be reconsidered.
-        let data = match msg.data {
-            Some(data) => data,
-            None => return Ok(Default::default()),
-        };
+        let data = msg.data.unwrap_or_else(Default::default);
 
-        Ok(prost::Message::decode(&data.value[..])?)
+        // TODO: Messages with missing services should be considered incorrect.
+        let service = msg.source.unwrap_or_else(Default::default).service_name;
+
+        Ok(Packet {
+            service: service,
+            kind: Some(msg.message_type),
+            data: prost::Message::decode(&data.value[..])?
+        })
     }
 
     /// Emits a raw Fleetspeak message to the server through this connection.
