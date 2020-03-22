@@ -1,7 +1,7 @@
 Fleetspeak (for Rust)
 =====================
 
-[![Travis CI build status][travis-status]][travis-builds]
+[![Travis CI build status][travis-badge]][travis]
 [![Crate][crate-badge]][crate]
 [![Documentation][docs-badge]][docs]
 
@@ -27,8 +27,8 @@ part of the experiment of rewriting the GRR client in Rust.
 [rust]: https://rust-lang.org
 [grpc]: https://grpc.io
 
-[travis-builds]: https://travis-ci.org/google/fleetspeak-rs
-[travis-status]: https://travis-ci.org/google/fleetspeak-rs.svg?branch=master
+[travis]: https://travis-ci.org/google/fleetspeak-rs
+[travis-badge]: https://travis-ci.org/google/fleetspeak-rs.svg?branch=master
 [crate]: https://crates.io/crates/fleetspeak
 [crate-badge]: https://img.shields.io/crates/v/fleetspeak.svg
 [docs]: https://docs.rs/fleetspeak
