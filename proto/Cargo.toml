@@ -10,7 +10,8 @@ repository = "https://github.com/google/fleetspeak-rs"
 edition = "2018"
 
 exclude = [
-  "!/proto/**/*.proto",
+  "/fleetspeak/**",
+  "!/fleetspeak/**/*.proto",
 ]
 
 [dependencies]
