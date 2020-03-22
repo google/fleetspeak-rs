@@ -132,7 +132,7 @@ where
 ///     Err(error) => eprintln!("failed to collected the packet: {}", error),
 /// }
 /// ```
-pub fn collect<M>(rate: Duration) -> Result<Packet<M>, std::io::Error>
+pub fn collect<M>(rate: Duration) -> Result<Packet<M>, ReadError>
 where
     M: prost::Message + Default + 'static,
 {
