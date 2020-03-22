@@ -5,18 +5,18 @@
 
 use std::time::Duration;
 
-use fleetspeak::client::Packet;
+use fleetspeak::Packet;
 
 fn main() -> std::io::Result<()> {
-    fleetspeak::client::startup("0.0.1")?;
+    fleetspeak::startup("0.0.1")?;
 
     loop {
-        let packet = fleetspeak::client::collect(Duration::from_secs(1))?;
+        let packet = fleetspeak::collect(Duration::from_secs(1))?;
 
         let request: String = packet.data;
         let response: String = format!("Hello {}!", request);
 
-        fleetspeak::client::send(Packet {
+        fleetspeak::send(Packet {
             service: String::from("greeter"),
             kind: None,
             data: response,
