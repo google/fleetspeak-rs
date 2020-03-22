@@ -3,7 +3,7 @@
 // Use of this source code is governed by an MIT-style license that can be found
 // in the LICENSE file or at https://opensource.org/licenses/MIT.
 
-//! A Fleetspeak client connector library.
+//! A [Fleetspeak] client connector library.
 //!
 //! This library exposes a set of functions for writing client-side Fleetspeak
 //! services. Each of these functions operates on a global connection object
@@ -14,6 +14,8 @@
 //! Note that each service should send startup information upon its inception
 //! and continue to heartbeat from time to time to notify the Fleetspeak client
 //! that it did not get stuck.
+//!
+//! [Fleetspeak]: https://github.com/google/fleetspeak
 
 mod connection;
 mod error;
