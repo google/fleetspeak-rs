@@ -109,8 +109,8 @@ where
 
 /// Collects a message from the Fleetspeak server.
 ///
-/// Unlike [`receive`], `collect` will send heartbeat signals while polling for
-/// the message at the specified `rate`.
+/// Unlike [`receive`], `collect` will send heartbeat signals at the specified
+/// `rate` while waiting for the message.
 ///
 /// This function is useful in the main loop of your service when it is not
 /// supposed to do anything until a request from the server arrives. If your
