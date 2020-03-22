@@ -3,7 +3,7 @@
 // Use of this source code is governed by an MIT-style license that can be found
 // in the LICENSE file or at https://opensource.org/licenses/MIT.
 
-//! An Fleetspeak client connector library.
+//! A Fleetspeak client connector library.
 //!
 //! This library exposes a set of functions for writing client-side Fleetspeak
 //! services. Each of these functions operates on a global connection object
@@ -78,7 +78,7 @@ where
     locked(&CONNECTION.output, |buf| self::connection::send(buf, packet))
 }
 
-/// Receives the message from the Fleetspeak server.
+/// Receives a message from the Fleetspeak server.
 ///
 /// This function will block until there is a message to be read from the input.
 /// Note that in particular it means your service will be unable to heartbeat
@@ -105,7 +105,7 @@ where
     locked(&CONNECTION.input, |buf| self::connection::receive(buf))
 }
 
-/// Collects the message from the Fleetspeak server.
+/// Collects a message from the Fleetspeak server.
 ///
 /// Unlike [`receive`], `collect` will send heartbeat signals while polling for
 /// the message at the specified `rate`.
