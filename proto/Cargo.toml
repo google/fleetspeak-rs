@@ -1,8 +1,12 @@
 [package]
 name = "fleetspeak-proto"
 version = "0.1.0"
+description = "A Fleetspeak connector crate with Protocol Buffers messages."
 license = "MIT"
 authors = ["Łukasz Hanuszczak <hanuszczak@google.com>"]
+homepage = "https://github.com/google/fleetspeak-rs"
+documentation = "https://docs.rs/fleetspeak-proto"
+repository = "https://github.com/google/fleetspeak-rs"
 edition = "2018"
 
 exclude = [
