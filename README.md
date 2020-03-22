@@ -2,6 +2,8 @@ Fleetspeak (for Rust)
 =====================
 
 [![Travis CI build status][travis-status]][travis-builds]
+[![Crate][crate-badge]][crate]
+[![Documentation][docs-badge]][docs]
 
 [Fleetspeak][fleetspeak] is a communication framework with a focus on security
 monitoring. Currently, it is primarily used in the [GRR][grr] project (an remote
@@ -27,3 +29,7 @@ part of the experiment of rewriting the GRR client in Rust.
 
 [travis-builds]: https://travis-ci.org/google/fleetspeak-rs
 [travis-status]: https://travis-ci.org/google/fleetspeak-rs.svg?branch=master
+[crate]: https://crates.io/crates/fleetspeak
+[crate-badge]: https://img.shields.io/crates/v/fleetspeak.svg
+[docs]: https://docs.rs/fleetspeak
+[docs-badge]: https://docs.rs/fleetspeak/badge.svg
