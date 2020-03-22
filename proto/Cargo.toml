@@ -5,6 +5,10 @@ license = "MIT"
 authors = ["Łukasz Hanuszczak <hanuszczak@google.com>"]
 edition = "2018"
 
+exclude = [
+  "!/proto/**/*.proto",
+]
+
 [dependencies]
 prost = { version = "0.6.1" }
 prost-types = { version = "0.6.1" }
