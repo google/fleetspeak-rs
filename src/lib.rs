@@ -136,32 +136,48 @@ pub fn collect<M>(rate: Duration) -> Result<Packet<M>, std::io::Error>
 where
     M: prost::Message + Default + 'static,
 {
+    // TODO: Refactor this code once `!` stabilizes.
     let (sender, receiver) = std::sync::mpsc::channel();
 
     std::thread::spawn(move || {
-        let packet = receive();
+        loop {
+            use std::sync::mpsc::TryRecvError::*;
 
-        // We do not care whether the packet was sent, because this call can
-        // fail only if the receiver closed itself. Since the receiver loops
-        // indefinitely, it closes only in case there was a heartbeat error. But
-        // at that point we are no longer interested in the packet.
-        let _ = sender.send(packet);
+            // The heartbeat thread should stop itself when it receives a signal
+            // to do so (or when the channel is closed). Otherwise, it should
+            // keep heartbeating.
+            match receiver.try_recv() {
+                Ok(()) => return,
+                Err(Empty) => (),
+                Err(Disconnected) => return,
+            }
+
+            // Ignoring heartbeat errors is not great, but they can occur only
+            // in very rare cases and any subsequent write operations are going
+            // to fail soon anyway. Hence, we drop the error on the floor and
+            // shut the thread down, hoping that the main thread will notice the
+            // problem as soon as it tries to write something. In case the main
+            // thread blocks indefinitely, Fleetspeak should figure out that the
+            // service is unresponsive and kill it eventually.
+            // TODO: Add logging.
+            match heartbeat() {
+                Ok(()) => (),
+                Err(_) => return,
+            }
+
+            std::thread::sleep(rate);
+        }
     });
 
-    loop {
-        use std::sync::mpsc::TryRecvError::*;
+    let packet = receive()?;
 
-        // The sender will block indefinitely until there is a message to pick,
-        // so the disconnection branch is not possible.
-        match receiver.try_recv() {
-            Ok(packet) => return Ok(packet?),
-            Err(Empty) => (),
-            Err(Disconnected) => panic!(),
-        }
+    // Notify the heartbeat thread to shut down. We do not really care whether
+    // the thread was aborted (it should never be, but if it was, we just carry
+    // on).
+    // TODO: Add logging.
+    let _ = sender.send(());
 
-        heartbeat()?;
-        std::thread::sleep(rate);
-    }
+    Ok(packet)
 }
 
 /// A connection to the Fleetspeak client.
