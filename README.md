@@ -33,3 +33,22 @@ part of the experiment of rewriting the GRR client in Rust.
 [crate-badge]: https://img.shields.io/crates/v/fleetspeak.svg
 [docs]: https://docs.rs/fleetspeak
 [docs-badge]: https://docs.rs/fleetspeak/badge.svg
+
+Using
+-----
+
+To write your service, first add this library to dependencies in your project's
+`Cargo.toml` file:
+
+```toml
+[dependencies]
+fleetspeak = "0.1.0"
+```
+
+Now, in your project, you can use functions such as `fleetspeak::send` and
+`fleetspeak::receive` to communicate with the Fleetspeak client. Consult the
+[documentation](https://docs.rs/fleetspeak) about the details. You can also
+checkout the [example](examples/hello.rs).
+
+Read the Fleetspeak manual to learn how to make the Fleetspeak client aware of
+your service and launch it as a daemon.
