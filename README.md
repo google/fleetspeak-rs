@@ -6,7 +6,7 @@ Fleetspeak (for Rust)
 [![Documentation][docs-badge]][docs]
 
 [Fleetspeak][fleetspeak] is a communication framework with a focus on security
-monitoring. Currently, it is primarily used in the [GRR][grr] project (an remote
+monitoring. Currently, it is primarily used in the [GRR][grr] project (a remote
 live forensics framework).
 
 This repository contains a library for writing code in the [Rust][rust] language
@@ -14,7 +14,7 @@ for client-side Fleetspeak services. In a nutshell, this library is just a set
 of functions for sending and receiving messages from the Fleetspeak client.
 
 Currently there are no plans to provide capabilities for writing server-side
-capabilities as well. Since server-side services communicate with the Fleetspeak
+services as well. Since server-side services communicate with the Fleetspeak
 server through [gRPC][grpc], having a sufficiently ergonomic gRPC library should
 be more than enough for such purposes.
 
