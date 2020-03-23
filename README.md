@@ -52,3 +52,17 @@ checkout the [example](examples/hello.rs).
 
 Read the Fleetspeak manual to learn how to make the Fleetspeak client aware of
 your service and launch it as a daemon.
+
+FAQ
+---
+
+  * What are the build requirements?
+
+  This library uses [Protocol Buffers][protobuf] to communicate with Fleetspeak.
+  To work with proto messages in Rust, it uses the [PROST!][prost] library and
+  compiles needed proto files to Rust code. For most platforms PROST! comes with
+  a prepackaged proto compiler. If you are unlucky, you will have to install a
+  proto compiler yourself. Refer to the PROST! documentation for details.
+
+[protobuf]: https://developers.google.com/protocol-buffers
+[prost]: https://github.com/danburkert/prost
