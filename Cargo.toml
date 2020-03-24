@@ -1,6 +1,6 @@
 [package]
 name = "fleetspeak"
-version = "0.1.0"
+version = "0.1.1"
 description = "A Fleetspeak client connector library for the Rust language."
 license = "MIT"
 authors = ["Łukasz Hanuszczak <hanuszczak@google.com>"]
@@ -11,7 +11,7 @@ edition = "2018"
 
 [dependencies]
 byteorder = { version = "1.3.4" }
-fleetspeak-proto = { path = "proto/", version = "0.1.0" }
+fleetspeak-proto = { path = "proto/", version = "0.1.1" }
 lazy_static = { version = "1.4.0" }
 log = { version = "0.4.8" }
 prost = { version = "0.6.1" }
