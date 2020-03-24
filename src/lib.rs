@@ -25,6 +25,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use lazy_static::lazy_static;
+use log::{info, error};
 
 pub use self::connection::Packet;
 pub use self::error::{ReadError, WriteError};
@@ -159,10 +160,12 @@ where
             // problem as soon as it tries to write something. In case the main
             // thread blocks indefinitely, Fleetspeak should figure out that the
             // service is unresponsive and kill it eventually.
-            // TODO: Add logging.
             match heartbeat() {
                 Ok(()) => (),
-                Err(_) => return,
+                Err(error) => {
+                    error!(target: "fleetspeak", "heartbeat error: {}", error);
+                    return;
+                },
             }
 
             std::thread::sleep(rate);
@@ -172,9 +175,8 @@ where
     let packet = receive()?;
 
     // Notify the heartbeat thread to shut down. We do not really care whether
-    // the thread was aborted (it should never be, but if it was, we just carry
-    // on).
-    // TODO: Add logging.
+    // the message was really delivered as this can fail only if the channel
+    // disconnected (and this can happen only if the thread is already dead).
     let _ = sender.send(());
 
     Ok(packet)
@@ -199,6 +201,8 @@ lazy_static! {
 
         use self::connection::handshake;
         handshake(&mut input, &mut output).expect("handshake failure");
+
+        info!(target: "fleetspeak", "handshake successful");
 
         Connection {
             input: Mutex::new(input),

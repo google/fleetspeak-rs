@@ -6,6 +6,7 @@
 use std::io::{Read, Write};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use log::warn;
 use prost;
 use prost_types;
 
@@ -164,7 +165,13 @@ where
     // should we error-out or return a default value? For the time being we
     // stick to the default approach, but if this proves to be not working
     // well in practice, it might be reconsidered.
-    let data = msg.data.unwrap_or_else(Default::default);
+    let data = match msg.data {
+        Some(data) => data,
+        None => {
+            warn!(target: "fleetspeak", "empty message from '{}'", service);
+            Default::default()
+        },
+    };
 
     Ok(Packet {
         service: service,
