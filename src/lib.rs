@@ -25,7 +25,7 @@ use std::sync::Mutex;
 use std::time::Duration;
 
 use lazy_static::lazy_static;
-use log::{info, error};
+use log::{error, info};
 
 pub use self::connection::Packet;
 pub use self::error::{ReadError, WriteError};
@@ -50,7 +50,9 @@ pub fn heartbeat() -> Result<(), WriteError> {
 /// The `version` string should contain a self-reported version of the service.
 /// This data is used primarily for statistics.
 pub fn startup(version: &str) -> Result<(), WriteError> {
-    locked(&CONNECTION.output, |buf| self::connection::startup(buf, version))
+    locked(&CONNECTION.output, |buf| {
+        self::connection::startup(buf, version)
+    })
 }
 
 /// Sends the message to the Fleetspeak server.
@@ -78,7 +80,9 @@ pub fn send<M>(packet: Packet<M>) -> Result<(), WriteError>
 where
     M: prost::Message,
 {
-    locked(&CONNECTION.output, |buf| self::connection::send(buf, packet))
+    locked(&CONNECTION.output, |buf| {
+        self::connection::send(buf, packet)
+    })
 }
 
 /// Receives a message from the Fleetspeak server.
@@ -165,7 +169,7 @@ where
                 Err(error) => {
                     error!(target: "fleetspeak", "heartbeat error: {}", error);
                     return;
-                },
+                }
             }
 
             std::thread::sleep(rate);
@@ -219,7 +223,7 @@ lazy_static! {
 /// it is likely the service needs to be restarted anyway.
 fn locked<F, T, E>(mutex: &Mutex<File>, f: F) -> Result<T, E>
 where
-    F: FnOnce(&mut File) -> Result<T, E>
+    F: FnOnce(&mut File) -> Result<T, E>,
 {
     let mut file = mutex.lock().expect("poisoned connection mutex");
     f(&mut file)
@@ -237,7 +241,5 @@ fn open(var: &str) -> File {
         .expect(&format!("failed to parse file descriptor"));
 
     // TODO: Add support for Windows.
-    unsafe {
-        std::os::unix::io::FromRawFd::from_raw_fd(fd)
-    }
+    unsafe { std::os::unix::io::FromRawFd::from_raw_fd(fd) }
 }

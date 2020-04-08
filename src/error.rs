@@ -3,7 +3,7 @@
 // Use of this source code is governed by an MIT-style license that can be found
 // in the LICENSE file or at https://opensource.org/licenses/MIT.
 
-use std::error::{Error};
+use std::error::Error;
 use std::fmt::{Display, Formatter};
 
 /// An error type for failures that occurred when receiving a message.
@@ -29,7 +29,6 @@ pub enum WriteError {
 }
 
 impl ReadError {
-
     /// Converts an error indicating malformed proto message to `ReadError`.
     pub fn malformed<E>(err: E) -> ReadError
     where
@@ -40,7 +39,6 @@ impl ReadError {
 }
 
 impl Display for ReadError {
-
     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
         use ReadError::*;
 
@@ -54,7 +52,6 @@ impl Display for ReadError {
 }
 
 impl Display for WriteError {
-
     fn fmt(&self, fmt: &mut Formatter) -> std::fmt::Result {
         use WriteError::*;
 
@@ -66,7 +63,6 @@ impl Display for WriteError {
 }
 
 impl Error for ReadError {
-
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use ReadError::*;
 
@@ -80,7 +76,6 @@ impl Error for ReadError {
 }
 
 impl Error for WriteError {
-
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         use WriteError::*;
 
@@ -92,35 +87,30 @@ impl Error for WriteError {
 }
 
 impl From<std::io::Error> for ReadError {
-
     fn from(err: std::io::Error) -> ReadError {
         ReadError::Input(err)
     }
 }
 
 impl From<prost::DecodeError> for ReadError {
-
     fn from(err: prost::DecodeError) -> ReadError {
         ReadError::Decode(err)
     }
 }
 
 impl From<std::io::Error> for WriteError {
-
     fn from(err: std::io::Error) -> WriteError {
         WriteError::Output(err)
     }
 }
 
 impl From<prost::EncodeError> for WriteError {
-
     fn from(err: prost::EncodeError) -> WriteError {
         WriteError::Encode(err)
     }
 }
 
 impl From<ReadError> for std::io::Error {
-
     fn from(err: ReadError) -> std::io::Error {
         use ReadError::*;
 
@@ -130,17 +120,16 @@ impl From<ReadError> for std::io::Error {
             Malformed(err) => {
                 let err = format!("malformed proto: {}", err);
                 std::io::Error::new(std::io::ErrorKind::InvalidData, err)
-            },
+            }
             Magic(magic) => {
                 let err = format!("invalid magic: {}", magic);
                 std::io::Error::new(std::io::ErrorKind::InvalidData, err)
-            },
+            }
         }
     }
 }
 
 impl From<WriteError> for std::io::Error {
-
     fn from(err: WriteError) -> std::io::Error {
         use WriteError::*;
 

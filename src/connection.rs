@@ -10,8 +10,8 @@ use log::warn;
 use prost;
 use prost_types;
 
-use fleetspeak_proto::common::{Message, Address};
-use fleetspeak_proto::channel::{StartupData};
+use fleetspeak_proto::channel::StartupData;
+use fleetspeak_proto::common::{Address, Message};
 
 use super::{ReadError, WriteError};
 
@@ -170,13 +170,13 @@ where
         None => {
             warn!(target: "fleetspeak", "empty message from '{}'", service);
             Default::default()
-        },
+        }
     };
 
     Ok(Packet {
         service: service,
         kind: Some(msg.message_type),
-        data: prost::Message::decode(&data.value[..])?
+        data: prost::Message::decode(&data.value[..])?,
     })
 }
 
@@ -213,7 +213,7 @@ where
     R: Read,
 {
     let len = input.read_u32::<LittleEndian>()? as usize;
-    let mut buf = vec!(0; len);
+    let mut buf = vec![0; len];
 
     input.read_exact(&mut buf[..])?;
     read_magic(input)?;
@@ -248,8 +248,8 @@ const MAGIC: u32 = 0xf1ee1001;
 
 #[cfg(test)]
 mod tests {
-    use std::io::Cursor;
     use super::*;
+    use std::io::Cursor;
 
     #[test]
     fn handshake_good_magic() {
