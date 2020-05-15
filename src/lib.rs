@@ -236,8 +236,16 @@ fn open(var: &str) -> File {
         .parse()
         .expect(&format!("failed to parse file descriptor"));
 
-    // TODO: Add support for Windows.
+    #[cfg(target_family = "unix")]
     unsafe {
         std::os::unix::io::FromRawFd::from_raw_fd(fd)
+    }
+
+    #[cfg(target_family = "windows")]
+    unsafe {
+        // We use `identity` to specify the type for the `parse` call above and
+        // then cast it to an appropriate Windows-specific pointer type.
+        let handle = std::convert::identity::<usize>(fd) as _;
+        std::os::windows::io::FromRawHandle::from_raw_handle(handle)
     }
 }
