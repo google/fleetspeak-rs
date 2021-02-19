@@ -1,0 +1,35 @@
+name: 'Integrate'
+on:
+  - push
+  - pull_request
+jobs:
+  ci:
+    name: 'CI'
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-latest
+        toolchain:
+          - stable
+          - nightly
+    steps:
+      - name: 'Checkout the repository'
+        uses: actions/checkout@v2
+        with:
+          submodules: true
+      - name: 'Install the Rust toolchain'
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: ${{ matrix.toolchain }}
+      - name: 'Build the library'
+        uses: actions-rs/cargo@v1
+        with:
+          command: build
+      - name: 'Run tests for the library'
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
