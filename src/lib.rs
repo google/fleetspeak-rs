@@ -22,7 +22,7 @@ mod error;
 
 use std::fs::File;
 use std::sync::Mutex;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use lazy_static::lazy_static;
 use log::{info, error};
@@ -39,6 +39,39 @@ pub use self::error::{ReadError, WriteError};
 /// configuration file.
 pub fn heartbeat() -> Result<(), WriteError> {
     locked(&CONNECTION.output, |buf| self::connection::heartbeat(buf))
+}
+
+/// Sends a heartbeat signal to the Fleetspeak client but no more frequently
+/// than the specified `rate`.
+///
+/// Note that the specified `rate` should be at least the rate defined in the
+/// Fleetspeak service configuration file. Because of potential slowdowns, some
+/// margin of error should be left.
+///
+/// See documentation for the [`heartbeat`] function for more details.
+///
+/// [`heartbeat`]: heartbeat
+pub fn heartbeat_with_throttle(rate: Duration) -> Result<(), WriteError> {
+    lazy_static! {
+        static ref LAST_HEARTBEAT: Mutex<Option<Instant>> = Mutex::new(None);
+    }
+
+    let mut last_heartbeat = LAST_HEARTBEAT.lock()
+        .expect("poisoned heartbeat mutex");
+
+    match *last_heartbeat {
+        Some(last_heartbeat) if last_heartbeat.elapsed() < rate => {
+            // Do nothing if the last heartbeat happened more recently than the
+            // specified heartbeat rate.
+            return Ok(());
+        }
+        _ => (),
+    }
+
+    heartbeat()?;
+    *last_heartbeat = Some(Instant::now());
+
+    Ok(())
 }
 
 /// Sends a system message with startup information to the Fleetspeak client.
