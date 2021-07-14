@@ -1,6 +1,6 @@
 [package]
 name = "fleetspeak-proto"
-version = "0.1.2"
+version = "0.1.3"
 description = "A Fleetspeak connector crate with Protocol Buffers messages."
 license = "MIT"
 authors = ["Łukasz Hanuszczak <hanuszczak@google.com>"]
