@@ -1,3 +1,8 @@
+0.1.3 (2021-07-14)
+==================
+
+  * Added heartbeat variant that supports throttling.
+
 0.1.2 (2020-05-16)
 ==================
 
