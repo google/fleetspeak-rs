@@ -12,7 +12,7 @@ pub enum ReadError {
     /// An I/O error occurred when reading from the input stream.
     Input(std::io::Error),
     /// An error occurred when decoding bytes of the proto message.
-    Decode(prost::DecodeError),
+    Decode(protobuf::ProtobufError),
     /// An error occurred because the decoded proto message was malformed.
     Malformed(Box<dyn Error + Send + Sync>),
     /// An invalid magic number has been read from the input stream.
@@ -25,7 +25,7 @@ pub enum WriteError {
     /// An I/O error occurred when writing to the output stream.
     Output(std::io::Error),
     /// An error occurred when encoding the proto message to bytes.
-    Encode(prost::EncodeError),
+    Encode(protobuf::ProtobufError),
 }
 
 impl ReadError {
@@ -98,9 +98,9 @@ impl From<std::io::Error> for ReadError {
     }
 }
 
-impl From<prost::DecodeError> for ReadError {
+impl From<protobuf::ProtobufError> for ReadError {
 
-    fn from(err: prost::DecodeError) -> ReadError {
+    fn from(err: protobuf::ProtobufError) -> ReadError {
         ReadError::Decode(err)
     }
 }
@@ -112,9 +112,9 @@ impl From<std::io::Error> for WriteError {
     }
 }
 
-impl From<prost::EncodeError> for WriteError {
+impl From<protobuf::ProtobufError> for WriteError {
 
-    fn from(err: prost::EncodeError) -> WriteError {
+    fn from(err: protobuf::ProtobufError) -> WriteError {
         WriteError::Encode(err)
     }
 }

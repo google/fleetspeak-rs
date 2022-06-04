@@ -15,8 +15,7 @@ exclude = [
 ]
 
 [dependencies]
-prost = { version = "0.6.1" }
-prost-types = { version = "0.6.1" }
+protobuf = { version = "2.8.2" }
 
 [build-dependencies]
-prost-build = { version = "0.6.1" }
+protobuf-codegen-pure = { version = "2.8.2" }

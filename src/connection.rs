@@ -7,10 +7,8 @@ use std::io::{Read, Write};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 use log::warn;
-use prost;
-use prost_types;
 
-use fleetspeak_proto::common::{Message, Address};
+use fleetspeak_proto::common::{Message};
 use fleetspeak_proto::channel::{StartupData};
 
 use super::{ReadError, WriteError};
@@ -62,14 +60,9 @@ pub fn heartbeat<W>(output: &mut W) -> Result<(), WriteError>
 where
     W: Write,
 {
-    let msg = Message {
-        message_type: String::from("Heartbeat"),
-        destination: Some(Address {
-            service_name: String::from("system"),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
+    let mut msg = Message::new();
+    msg.set_message_type(String::from("Heartbeat"));
+    msg.mut_destination().set_service_name(String::from("system"));
 
     emit(output, msg)
 }
@@ -86,26 +79,17 @@ pub fn startup<W>(output: &mut W, version: &str) -> Result<(), WriteError>
 where
     W: Write,
 {
-    let data = StartupData {
-        pid: std::process::id() as i64,
-        version: String::from(version),
-    };
+    use protobuf::Message as _;
 
-    let mut buf = Vec::new();
-    prost::Message::encode(&data, &mut buf)?;
+    let mut data = StartupData::new();
+    data.set_pid(i64::from(std::process::id()));
+    data.set_version(String::from(version));
 
-    let msg = Message {
-        message_type: String::from("StartupData"),
-        destination: Some(Address {
-            service_name: String::from("system"),
-            ..Default::default()
-        }),
-        data: Some(prost_types::Any {
-            value: buf,
-            type_url: String::from("type.googleapis.com/fleetspeak.channel.StartupData"),
-        }),
-        ..Default::default()
-    };
+    let mut msg = Message::new();
+    msg.set_message_type(String::from("StartupData"));
+    msg.mut_destination().set_service_name(String::from("system"));
+    msg.mut_data().set_type_url(type_url(&data));
+    msg.mut_data().set_value(data.write_to_bytes()?);
 
     emit(output, msg)
 }
@@ -118,23 +102,13 @@ where
 pub fn send<W, M>(output: &mut W, packet: Packet<M>) -> Result<(), WriteError>
 where
     W: Write,
-    M: prost::Message,
+    M: protobuf::Message,
 {
-    let mut buf = Vec::new();
-    prost::Message::encode(&packet.data, &mut buf)?;
-
-    let msg = Message {
-        message_type: packet.kind.unwrap_or_else(String::new),
-        destination: Some(Address {
-            service_name: packet.service,
-            ..Default::default()
-        }),
-        data: Some(prost_types::Any {
-            value: buf,
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
+    let mut msg = Message::new();
+    msg.set_message_type(packet.kind.unwrap_or_else(String::new));
+    msg.mut_destination().set_service_name(packet.service);
+    msg.mut_data().set_type_url(type_url(&packet.data));
+    msg.mut_data().set_value(packet.data.write_to_bytes()?);
 
     emit(output, msg)
 }
@@ -147,36 +121,36 @@ where
 pub fn receive<R, M>(input: &mut R) -> Result<Packet<M>, ReadError>
 where
     R: Read,
-    M: prost::Message + Default,
+    M: protobuf::Message,
 {
-    let msg = accept(input)?;
+    let mut msg = accept(input)?;
 
     // While missing source address might not be consider a critical error
     // in most cases, for our own sanity we just disregard such messages.
     // Allowing such behaviour might indicate a more severe problem with
     // Fleetspeak and ignoring it simply masks the issue. This might be
     // reconsidered in the future.
-    let service = match msg.source {
-        Some(addr) => addr.service_name,
-        None => return Err(ReadError::malformed("missing source address")),
+    let service = if msg.has_source() {
+        msg.take_source().take_service_name()
+    } else {
+        return Err(ReadError::malformed("missing source address"))
     };
 
     // It is not clear what is the best approach here. If there is no data,
     // should we error-out or return a default value? For the time being we
     // stick to the default approach, but if this proves to be not working
     // well in practice, it might be reconsidered.
-    let data = match msg.data {
-        Some(data) => data,
-        None => {
-            warn!(target: "fleetspeak", "empty message from '{}'", service);
-            Default::default()
-        },
+    let data = if msg.has_data() {
+        msg.take_data()
+    } else {
+        warn!(target: "fleetspeak", "empty message from '{}'", service);
+        Default::default()
     };
 
     Ok(Packet {
         service: service,
         kind: Some(msg.message_type),
-        data: prost::Message::decode(&data.value[..])?
+        data: protobuf::Message::parse_from_bytes(&data.value[..])?,
     })
 }
 
@@ -192,11 +166,10 @@ fn emit<W>(output: &mut W, msg: Message) -> Result<(), WriteError>
 where
     W: Write,
 {
-    let mut buf = Vec::new();
-    prost::Message::encode(&msg, &mut buf)?;
+    use protobuf::Message as _;
 
-    output.write_u32::<LittleEndian>(buf.len() as u32)?;
-    output.write(&buf)?;
+    output.write_u32::<LittleEndian>(msg.compute_size())?;
+    msg.write_to_writer(output)?;
     write_magic(output)?;
     output.flush()?;
 
@@ -218,7 +191,7 @@ where
     input.read_exact(&mut buf[..])?;
     read_magic(input)?;
 
-    Ok(prost::Message::decode(&buf[..])?)
+    Ok(protobuf::Message::parse_from_bytes(&buf[..])?)
 }
 
 /// Writes the Fleetspeak magic to the output buffer.
@@ -245,6 +218,16 @@ where
 }
 
 const MAGIC: u32 = 0xf1ee1001;
+
+// Computes a type URL of the given Protocol Buffers message.
+//
+// This function should probably be part of the `protobuf` package but for some
+// reason it is not and we have to implement it ourselves.
+fn type_url<M: protobuf::Message>(message: &M) -> String {
+    format!("{}/{}", TYPE_URL_PREFIX, message.descriptor().full_name())
+}
+
+const TYPE_URL_PREFIX: &'static str = "type.googleapis.com";
 
 #[cfg(test)]
 mod tests {
@@ -278,5 +261,13 @@ mod tests {
         let mut cur_in = Cursor::new(&mut buf_in[..]);
         let mut cur_out = Cursor::new(&mut buf_out[..]);
         assert!(handshake(&mut cur_in, &mut cur_out).is_err());
+    }
+
+    #[test]
+    fn type_url_startup_data() {
+        assert_eq! {
+            type_url(&StartupData::new()),
+            "type.googleapis.com/fleetspeak.channel.StartupData"
+        };
     }
 }
