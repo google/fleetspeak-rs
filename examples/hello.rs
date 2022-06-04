@@ -12,7 +12,7 @@ fn main() -> std::io::Result<()> {
     fleetspeak::startup("0.0.1")?;
 
     loop {
-        let packet = fleetspeak::collect(Duration::from_secs(1))?;
+        let packet = fleetspeak::receive_with_heartbeat(Duration::from_secs(1))?;
 
         let request: StringValue = packet.data;
 

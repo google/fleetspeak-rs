@@ -123,12 +123,12 @@ where
 /// This function will block until there is a message to be read from the input.
 /// Note that in particular it means your service will be unable to heartbeat
 /// properly. If you are not expecting the message to arrive quickly, you should
-/// use [`collect`] instead.
+/// use [`receive_with_heartbeat`] instead.
 ///
 /// In case of any I/O failure or malformed message (e.g. due to parsing issues
 /// or when some fields are not being present), an error is reported.
 ///
-/// [`collect`]: fn.collect.html
+/// [`receive_with_heartbeat`]: fn.receive_with_heartbeat.html
 ///
 /// # Examples
 ///
@@ -147,7 +147,7 @@ where
     locked(&CONNECTION.input, |buf| self::connection::receive(buf))
 }
 
-/// Collects a message from the Fleetspeak server.
+/// Receive a message from the Fleetspeak server, heartbeating in background.
 ///
 /// Unlike [`receive`], `collect` will send heartbeat signals at the specified
 /// `rate` while waiting for the message.
@@ -169,12 +169,12 @@ where
 ///
 /// use protobuf::well_known_types::StringValue;
 ///
-/// match fleetspeak::collect::<StringValue>(Duration::from_secs(1)) {
+/// match fleetspeak::receive_with_heartbeat::<StringValue>(Duration::from_secs(1)) {
 ///     Ok(message) => println!("Hello, {}!", message.data.get_value()),
 ///     Err(error) => eprintln!("failed to collected the message: {}", error),
 /// }
 /// ```
-pub fn collect<M>(rate: Duration) -> Result<Message<M>, ReadError>
+pub fn receive_with_heartbeat<M>(rate: Duration) -> Result<Message<M>, ReadError>
 where
     M: protobuf::Message + 'static,
 {
