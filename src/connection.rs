@@ -6,10 +6,6 @@
 use std::io::{Read, Write};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
-use log::warn;
-
-use fleetspeak_proto::common::{Message};
-use fleetspeak_proto::channel::{StartupData};
 
 use super::{ReadError, WriteError};
 
@@ -60,7 +56,7 @@ pub fn heartbeat<W>(output: &mut W) -> Result<(), WriteError>
 where
     W: Write,
 {
-    let mut msg = Message::new();
+    let mut msg = fleetspeak_proto::common::Message::new();
     msg.set_message_type(String::from("Heartbeat"));
     msg.mut_destination().set_service_name(String::from("system"));
 
@@ -81,11 +77,11 @@ where
 {
     use protobuf::Message as _;
 
-    let mut data = StartupData::new();
+    let mut data = fleetspeak_proto::channel::StartupData::new();
     data.set_pid(i64::from(std::process::id()));
     data.set_version(String::from(version));
 
-    let mut msg = Message::new();
+    let mut msg = fleetspeak_proto::common::Message::new();
     msg.set_message_type(String::from("StartupData"));
     msg.mut_destination().set_service_name(String::from("system"));
     msg.mut_data().set_type_url(type_url(&data));
@@ -104,7 +100,7 @@ where
     W: Write,
     M: protobuf::Message,
 {
-    let mut msg = Message::new();
+    let mut msg = fleetspeak_proto::common::Message::new();
     msg.set_message_type(packet.kind.unwrap_or_else(String::new));
     msg.mut_destination().set_service_name(packet.service);
     msg.mut_data().set_type_url(type_url(&packet.data));
@@ -143,7 +139,7 @@ where
     let data = if msg.has_data() {
         msg.take_data()
     } else {
-        warn!(target: "fleetspeak", "empty message from '{}'", service);
+        log::warn!(target: "fleetspeak", "empty message from '{}'", service);
         Default::default()
     };
 
@@ -162,7 +158,7 @@ where
 /// Note that this call will fail only if the message cannot be written to
 /// the output or cannot be properly encoded but will succeed even if the
 /// message is not what the server expects.
-fn write_raw<W>(output: &mut W, msg: Message) -> Result<(), WriteError>
+fn write_raw<W>(output: &mut W, msg: fleetspeak_proto::common::Message) -> Result<(), WriteError>
 where
     W: Write,
 {
@@ -181,7 +177,7 @@ where
 /// This function will block until there is a message to be read from the
 /// input. It will fail in case of any I/O error or if the message cannot
 /// be parsed as a Fleetspeak message.
-fn read_raw<R>(input: &mut R) -> Result<Message, ReadError>
+fn read_raw<R>(input: &mut R) -> Result<fleetspeak_proto::common::Message, ReadError>
 where
     R: Read,
 {
@@ -266,7 +262,7 @@ mod tests {
     #[test]
     fn type_url_startup_data() {
         assert_eq! {
-            type_url(&StartupData::new()),
+            type_url(&fleetspeak_proto::channel::StartupData::new()),
             "type.googleapis.com/fleetspeak.channel.StartupData"
         };
     }
