@@ -100,16 +100,20 @@ pub fn startup(version: &str) -> Result<(), WriteError> {
 ///
 /// ```no_run
 /// use fleetspeak::Packet;
+/// use protobuf::well_known_types::StringValue;
+/// 
+/// let mut message = StringValue::new();
+/// message.set_value(String::from("Hello, World!"));
 ///
 /// fleetspeak::send(Packet {
 ///     service: String::from("example"),
 ///     kind: None,
-///     data: String::from("Hello, World!"),
+///     data: message,
 /// }).expect("failed to send the packet");
 /// ```
 pub fn send<M>(packet: Packet<M>) -> Result<(), WriteError>
 where
-    M: prost::Message,
+    M: protobuf::Message,
 {
     locked(&CONNECTION.output, |buf| self::connection::send(buf, packet))
 }
@@ -129,14 +133,16 @@ where
 /// # Examples
 ///
 /// ```no_run
-/// match fleetspeak::receive::<String>() {
-///     Ok(packet) => println!("Hello, {}!", packet.data),
+/// use protobuf::well_known_types::StringValue;
+/// 
+/// match fleetspeak::receive::<StringValue>() {
+///     Ok(packet) => println!("Hello, {}!", packet.data.get_value()),
 ///     Err(error) => eprintln!("failed to receive the packet: {}", error),
 /// }
 /// ```
 pub fn receive<M>() -> Result<Packet<M>, ReadError>
 where
-    M: prost::Message + Default,
+    M: protobuf::Message,
 {
     locked(&CONNECTION.input, |buf| self::connection::receive(buf))
 }
@@ -160,15 +166,17 @@ where
 ///
 /// ```no_run
 /// use std::time::Duration;
+/// 
+/// use protobuf::well_known_types::StringValue;
 ///
-/// match fleetspeak::collect::<String>(Duration::from_secs(1)) {
-///     Ok(packet) => println!("Hello, {}!", packet.data),
+/// match fleetspeak::collect::<StringValue>(Duration::from_secs(1)) {
+///     Ok(packet) => println!("Hello, {}!", packet.data.get_value()),
 ///     Err(error) => eprintln!("failed to collected the packet: {}", error),
 /// }
 /// ```
 pub fn collect<M>(rate: Duration) -> Result<Packet<M>, ReadError>
 where
-    M: prost::Message + Default + 'static,
+    M: protobuf::Message + 'static,
 {
     // TODO: Refactor this code once `!` stabilizes.
     let (sender, receiver) = std::sync::mpsc::channel();
