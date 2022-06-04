@@ -88,7 +88,7 @@ where
     let mut msg = Message::new();
     msg.set_message_type(String::from("StartupData"));
     msg.mut_destination().set_service_name(String::from("system"));
-    msg.mut_data().set_type_url(String::from("type.googleapis.com/fleetspeak.channel.StartupData"));
+    msg.mut_data().set_type_url(type_url(&data));
     msg.mut_data().set_value(data.write_to_bytes()?);
 
     emit(output, msg)
@@ -107,6 +107,7 @@ where
     let mut msg = Message::new();
     msg.set_message_type(packet.kind.unwrap_or_else(String::new));
     msg.mut_destination().set_service_name(packet.service);
+    msg.mut_data().set_type_url(type_url(&packet.data));
     msg.mut_data().set_value(packet.data.write_to_bytes()?);
 
     emit(output, msg)
@@ -218,6 +219,16 @@ where
 
 const MAGIC: u32 = 0xf1ee1001;
 
+// Computes a type URL of the given Protocol Buffers message.
+//
+// This function should probably be part of the `protobuf` package but for some
+// reason it is not and we have to implement it ourselves.
+fn type_url<M: protobuf::Message>(message: &M) -> String {
+    format!("{}/{}", TYPE_URL_PREFIX, message.descriptor().full_name())
+}
+
+const TYPE_URL_PREFIX: &'static str = "type.googleapis.com";
+
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
@@ -250,5 +261,13 @@ mod tests {
         let mut cur_in = Cursor::new(&mut buf_in[..]);
         let mut cur_out = Cursor::new(&mut buf_out[..]);
         assert!(handshake(&mut cur_in, &mut cur_out).is_err());
+    }
+
+    #[test]
+    fn type_url_startup_data() {
+        assert_eq! {
+            type_url(&StartupData::new()),
+            "type.googleapis.com/fleetspeak.channel.StartupData"
+        };
     }
 }
