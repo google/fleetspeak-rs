@@ -31,15 +31,15 @@ fn main() -> Result<()> {
     let proto_out_dir = proto_out_dir();
     std::fs::create_dir_all(&proto_out_dir)?;
 
-    protobuf_codegen_pure::run(protobuf_codegen_pure::Args {
-        out_dir: &proto_out_dir.to_str().unwrap(),
-        includes: INCLUDES,
-        input: PROTOS,
-        customize: protobuf_codegen_pure::Customize {
+    protobuf_codegen_pure::Codegen::new()
+        .out_dir(&proto_out_dir.to_str().unwrap())
+        .includes(INCLUDES)
+        .inputs(PROTOS)
+        .customize(protobuf_codegen_pure::Customize {
             gen_mod_rs: Some(true),
             ..Default::default()
-        },
-    })?;
+        })
+        .run()?;
 
     prost_build::compile_protos(PROTOS, INCLUDES)
 }
