@@ -15,8 +15,10 @@ exclude = [
 ]
 
 [dependencies]
+protobuf = { version = "2.8.2" }
 prost = { version = "0.6.1" }
 prost-types = { version = "0.6.1" }
 
 [build-dependencies]
+protobuf-codegen-pure = { version = "2.8.2" }
 prost-build = { version = "0.6.1" }
