@@ -215,10 +215,10 @@ where
 
 const MAGIC: u32 = 0xf1ee1001;
 
-// Computes a type URL of the given Protocol Buffers message.
-//
-// This function should probably be part of the `protobuf` package but for some
-// reason it is not and we have to implement it ourselves.
+/// Computes a type URL of the given Protocol Buffers message.
+///
+/// This function should probably be part of the `protobuf` package but for some
+/// reason it is not and we have to implement it ourselves.
 fn type_url<M: protobuf::Message>(message: &M) -> String {
     format!("{}/{}", TYPE_URL_PREFIX, message.descriptor().full_name())
 }
