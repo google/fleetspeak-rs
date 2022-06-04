@@ -6,7 +6,7 @@
 use std::time::Duration;
 
 use protobuf::well_known_types::StringValue;
-use fleetspeak::Packet;
+use fleetspeak::Message;
 
 fn main() -> std::io::Result<()> {
     fleetspeak::startup("0.0.1")?;
@@ -19,7 +19,7 @@ fn main() -> std::io::Result<()> {
         let mut response = StringValue::new();
         response.set_value(format!("Hello {}!", request.get_value()));
 
-        fleetspeak::send(Packet {
+        fleetspeak::send(Message {
             service: String::from("greeter"),
             kind: None,
             data: response,

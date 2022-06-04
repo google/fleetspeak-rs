@@ -27,7 +27,7 @@ use std::time::{Duration, Instant};
 use lazy_static::lazy_static;
 use log::{info, error};
 
-pub use self::connection::Packet;
+pub use self::connection::Message;
 pub use self::error::{ReadError, WriteError};
 
 /// Sends a heartbeat signal to the Fleetspeak client.
@@ -88,10 +88,10 @@ pub fn startup(version: &str) -> Result<(), WriteError> {
 
 /// Sends the message to the Fleetspeak server.
 ///
-/// The message is delivered to the server-side service as specified by the
-/// packet and optionally tagged with a type if specified. This optional message
-/// type is irrelevant for Fleetspeak but might be useful for the service the
-/// message is delivered to.
+/// The data is delivered to the server-side service as specified by the message
+/// and optionally tagged with a type if specified. This optional message type
+/// is irrelevant for Fleetspeak but might be useful for the service the message
+/// is delivered to.
 ///
 /// In case of any I/O failure or malformed message (e.g. due to encoding
 /// problems), an error is reported.
@@ -99,23 +99,23 @@ pub fn startup(version: &str) -> Result<(), WriteError> {
 /// # Examples
 ///
 /// ```no_run
-/// use fleetspeak::Packet;
+/// use fleetspeak::Message;
 /// use protobuf::well_known_types::StringValue;
-/// 
+///
 /// let mut message = StringValue::new();
 /// message.set_value(String::from("Hello, World!"));
 ///
-/// fleetspeak::send(Packet {
+/// fleetspeak::send(Message {
 ///     service: String::from("example"),
 ///     kind: None,
 ///     data: message,
-/// }).expect("failed to send the packet");
+/// }).expect("failed to send the message");
 /// ```
-pub fn send<M>(packet: Packet<M>) -> Result<(), WriteError>
+pub fn send<M>(message: Message<M>) -> Result<(), WriteError>
 where
     M: protobuf::Message,
 {
-    locked(&CONNECTION.output, |buf| self::connection::send(buf, packet))
+    locked(&CONNECTION.output, |buf| self::connection::send(buf, message))
 }
 
 /// Receives a message from the Fleetspeak server.
@@ -134,13 +134,13 @@ where
 ///
 /// ```no_run
 /// use protobuf::well_known_types::StringValue;
-/// 
+///
 /// match fleetspeak::receive::<StringValue>() {
-///     Ok(packet) => println!("Hello, {}!", packet.data.get_value()),
-///     Err(error) => eprintln!("failed to receive the packet: {}", error),
+///     Ok(message) => println!("Hello, {}!", message.data.get_value()),
+///     Err(error) => eprintln!("failed to receive the message: {}", error),
 /// }
 /// ```
-pub fn receive<M>() -> Result<Packet<M>, ReadError>
+pub fn receive<M>() -> Result<Message<M>, ReadError>
 where
     M: protobuf::Message,
 {
@@ -166,15 +166,15 @@ where
 ///
 /// ```no_run
 /// use std::time::Duration;
-/// 
+///
 /// use protobuf::well_known_types::StringValue;
 ///
 /// match fleetspeak::collect::<StringValue>(Duration::from_secs(1)) {
-///     Ok(packet) => println!("Hello, {}!", packet.data.get_value()),
-///     Err(error) => eprintln!("failed to collected the packet: {}", error),
+///     Ok(message) => println!("Hello, {}!", message.data.get_value()),
+///     Err(error) => eprintln!("failed to collected the message: {}", error),
 /// }
 /// ```
-pub fn collect<M>(rate: Duration) -> Result<Packet<M>, ReadError>
+pub fn collect<M>(rate: Duration) -> Result<Message<M>, ReadError>
 where
     M: protobuf::Message + 'static,
 {
@@ -213,14 +213,14 @@ where
         }
     });
 
-    let packet = receive()?;
+    let message = receive()?;
 
     // Notify the heartbeat thread to shut down. We do not really care whether
     // the message was really delivered as this can fail only if the channel
     // disconnected (and this can happen only if the thread is already dead).
     let _ = sender.send(());
 
-    Ok(packet)
+    Ok(message)
 }
 
 /// A connection to the Fleetspeak client.

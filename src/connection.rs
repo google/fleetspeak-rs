@@ -9,13 +9,13 @@ use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use super::{ReadError, WriteError};
 
-/// A Fleetspeak client communication packet.
+/// A Fleetspeak client communication message.
 ///
-/// This structure represents incoming or outgoing packet objects delivered by
+/// This structure represents incoming or outgoing message objects delivered by
 /// Fleetspeak. This is a simplified version of the underlying Protocol Buffers
 /// message that exposes too much irrelevant fields and makes the protocol easy
 /// to misuse.
-pub struct Packet<M: protobuf::Message> {
+pub struct Message<M: protobuf::Message> {
     /// A name of the server-side service that sent or should receive the data.
     pub service: String,
     /// An optional message type that can be used by the server-side service.
@@ -95,18 +95,18 @@ where
 /// The message is sent to the server-side `service` and tagged with the
 /// `kind` type. Note that this message type is rather irrelevant for
 /// Fleetspeak and it is up to the service what to do with this information.
-pub fn send<W, M>(output: &mut W, packet: Packet<M>) -> Result<(), WriteError>
+pub fn send<W, M>(output: &mut W, message: Message<M>) -> Result<(), WriteError>
 where
     W: Write,
     M: protobuf::Message,
 {
-    let mut msg = fleetspeak_proto::common::Message::new();
-    msg.set_message_type(packet.kind.unwrap_or_else(String::new));
-    msg.mut_destination().set_service_name(packet.service);
-    msg.mut_data().set_type_url(type_url(&packet.data));
-    msg.mut_data().set_value(packet.data.write_to_bytes()?);
+    let mut proto = fleetspeak_proto::common::Message::new();
+    proto.set_message_type(message.kind.unwrap_or_else(String::new));
+    proto.mut_destination().set_service_name(message.service);
+    proto.mut_data().set_type_url(type_url(&message.data));
+    proto.mut_data().set_value(message.data.write_to_bytes()?);
 
-    write_raw(output, msg)
+    write_raw(output, proto)
 }
 
 /// Receives the message from the Fleetspeak server through the input buffer.
@@ -114,7 +114,7 @@ where
 /// This function will block until there is a message to be read in the
 /// input. Errors are reported in case of any I/O failure or if the read
 /// message was malformed (e.g. it cannot be parsed to the expected type).
-pub fn receive<R, M>(input: &mut R) -> Result<Packet<M>, ReadError>
+pub fn receive<R, M>(input: &mut R) -> Result<Message<M>, ReadError>
 where
     R: Read,
     M: protobuf::Message,
@@ -143,7 +143,7 @@ where
         Default::default()
     };
 
-    Ok(Packet {
+    Ok(Message {
         service: service,
         kind: Some(msg.message_type),
         data: protobuf::Message::parse_from_bytes(&data.value[..])?,
