@@ -39,7 +39,5 @@ fn main() -> Result<()> {
             gen_mod_rs: Some(true),
             ..Default::default()
         })
-        .run()?;
-
-    prost_build::compile_protos(PROTOS, INCLUDES)
+        .run()
 }
