@@ -1,3 +1,12 @@
+Upcoming release
+================
+
+  * Migrated from the [`prost`] crate to [`protobuf`] for Protocol Buffers
+    support.
+
+[`prost`]: https://crates.io/crates/prost
+[`protobuf`]: https://crates.io/crates/protobuf
+
 0.1.3 (2021-07-14)
 ==================
 
