@@ -15,7 +15,7 @@ use super::{ReadError, WriteError};
 /// Fleetspeak. This is a simplified version of the underlying Protocol Buffers
 /// message that exposes too much irrelevant fields and makes the protocol easy
 /// to misuse.
-pub struct Packet<M> {
+pub struct Packet<M: protobuf::Message> {
     /// A name of the server-side service that sent or should receive the data.
     pub service: String,
     /// An optional message type that can be used by the server-side service.
