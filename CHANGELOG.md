@@ -3,6 +3,8 @@ Upcoming release
 
   * Migrated from the [`prost`] crate to [`protobuf`] for Protocol Buffers
     support.
+  * Change API nomenclature to be consistent with Fleetspeak libraries for other
+    languages.
 
 [`prost`]: https://crates.io/crates/prost
 [`protobuf`]: https://crates.io/crates/protobuf
