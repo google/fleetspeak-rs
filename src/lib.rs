@@ -50,7 +50,7 @@ pub fn heartbeat() -> Result<(), WriteError> {
 ///
 /// See documentation for the [`heartbeat`] function for more details.
 ///
-/// [`heartbeat`]: heartbeat
+/// [`heartbeat`]: crate::heartbeat
 pub fn heartbeat_with_throttle(rate: Duration) -> Result<(), WriteError> {
     lazy_static! {
         static ref LAST_HEARTBEAT: Mutex<Option<Instant>> = Mutex::new(None);
@@ -128,7 +128,7 @@ where
 /// In case of any I/O failure or malformed message (e.g. due to parsing issues
 /// or when some fields are not being present), an error is reported.
 ///
-/// [`receive_with_heartbeat`]: fn.receive_with_heartbeat.html
+/// [`receive_with_heartbeat`]: crate::receive_with_heartbeat
 ///
 /// # Examples
 ///
@@ -160,7 +160,7 @@ where
 /// In case of any I/O failure or malformed message (e.g. due to parsing issues
 /// or when some fields are not being present), an error is reported.
 ///
-/// [`receive`]: fn.receive.html
+/// [`receive`]: crate::receive
 ///
 /// # Examples
 ///
