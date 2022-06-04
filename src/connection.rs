@@ -64,7 +64,7 @@ where
     msg.set_message_type(String::from("Heartbeat"));
     msg.mut_destination().set_service_name(String::from("system"));
 
-    emit(output, msg)
+    write_raw(output, msg)
 }
 
 /// Sends the startup information through this connection.
@@ -91,7 +91,7 @@ where
     msg.mut_data().set_type_url(type_url(&data));
     msg.mut_data().set_value(data.write_to_bytes()?);
 
-    emit(output, msg)
+    write_raw(output, msg)
 }
 
 /// Sends the message to the Fleetspeak server through the output buffer.
@@ -110,7 +110,7 @@ where
     msg.mut_data().set_type_url(type_url(&packet.data));
     msg.mut_data().set_value(packet.data.write_to_bytes()?);
 
-    emit(output, msg)
+    write_raw(output, msg)
 }
 
 /// Receives the message from the Fleetspeak server through the input buffer.
@@ -123,7 +123,7 @@ where
     R: Read,
     M: protobuf::Message,
 {
-    let mut msg = accept(input)?;
+    let mut msg = read_raw(input)?;
 
     // While missing source address might not be consider a critical error
     // in most cases, for our own sanity we just disregard such messages.
@@ -154,7 +154,7 @@ where
     })
 }
 
-/// Emits a raw Fleetspeak message to the output buffer.
+/// Writes a raw Fleetspeak message to the output buffer.
 ///
 /// This method does not perform any validation of the message being emitted
 /// and assumes that all the required fields are present.
@@ -162,7 +162,7 @@ where
 /// Note that this call will fail only if the message cannot be written to
 /// the output or cannot be properly encoded but will succeed even if the
 /// message is not what the server expects.
-fn emit<W>(output: &mut W, msg: Message) -> Result<(), WriteError>
+fn write_raw<W>(output: &mut W, msg: Message) -> Result<(), WriteError>
 where
     W: Write,
 {
@@ -176,12 +176,12 @@ where
     Ok(())
 }
 
-/// Accepts a raw Fleetspeeak message from the input buffer.
+/// Reads a raw Fleetspeeak message from the input buffer.
 ///
 /// This function will block until there is a message to be read from the
 /// input. It will fail in case of any I/O error or if the message cannot
 /// be parsed as a Fleetspeak message.
-fn accept<R>(input: &mut R) -> Result<Message, ReadError>
+fn read_raw<R>(input: &mut R) -> Result<Message, ReadError>
 where
     R: Read,
 {
