@@ -1,5 +1,5 @@
-Upcoming release
-================
+0.2.0 (2022-06-06)
+==================
 
   * Migrated from the [`prost`] crate to [`protobuf`] for Protocol Buffers
     support.
