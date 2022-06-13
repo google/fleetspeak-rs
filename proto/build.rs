@@ -23,9 +23,9 @@ fn main() -> Result<()> {
 
     protobuf_codegen_pure::Codegen::new()
         .out_dir(&proto_out_dir.to_str().unwrap())
-        .include("fleetspeak/fleetspeak/src")
-        .input("fleetspeak/fleetspeak/src/common/proto/fleetspeak/common.proto")
-        .input("fleetspeak/fleetspeak/src/client/channel/proto/fleetspeak_channel/channel.proto")
+        .include("vendor/fleetspeak/fleetspeak/src")
+        .input("vendor/fleetspeak/fleetspeak/src/common/proto/fleetspeak/common.proto")
+        .input("vendor/fleetspeak/fleetspeak/src/client/channel/proto/fleetspeak_channel/channel.proto")
         .customize(protobuf_codegen_pure::Customize {
             gen_mod_rs: Some(true),
             ..Default::default()
