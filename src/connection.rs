@@ -146,7 +146,7 @@ where
     Ok(Message {
         service: service,
         kind: Some(msg.message_type),
-        data: protobuf::Message::parse_from_bytes(&data.value[..])?,
+        data: protobuf::parse_from_bytes(&data.value[..])?,
     })
 }
 
@@ -187,7 +187,7 @@ where
     input.read_exact(&mut buf[..])?;
     read_magic(input)?;
 
-    Ok(protobuf::Message::parse_from_bytes(&buf[..])?)
+    Ok(protobuf::parse_from_bytes(&buf[..])?)
 }
 
 /// Writes the Fleetspeak magic to the output buffer.
