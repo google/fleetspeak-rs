@@ -10,12 +10,16 @@ repository = "https://github.com/google/fleetspeak-rs"
 edition = "2018"
 
 exclude = [
-  "/fleetspeak/**",
-  "!/fleetspeak/**/*.proto",
+  "/vendor/**",
+  "!/vendor/fleetspeak/**/*.proto",
+  "!/vendor/protobuf/src/**/*.proto",
 ]
 
 [dependencies]
-protobuf = { version = "2.8.2" }
+# TODO: We have to pin the dependency because of the internal build process.
+# This is not ideal and should be lifted in the future.
+protobuf = { version = "=2.8.2" }
 
 [build-dependencies]
-protobuf-codegen-pure = { version = "2.8.2" }
+# TODO: See the comment about pinning the `protobuf` package above.
+protobuf-codegen-pure = { version = "=2.8.2" }
