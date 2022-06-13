@@ -1,5 +1,5 @@
-Upcoming release
-================
+0.2.1 (2022-06-13)
+==================
 
   * Vendored the Protocol Buffers standard library into the repository.
   * Pinned version of the `protobuf` crate to 2.8.2. This change was forced by
