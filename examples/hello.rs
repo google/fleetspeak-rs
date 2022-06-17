@@ -5,7 +5,6 @@
 
 use std::time::Duration;
 
-use protobuf::well_known_types::StringValue;
 use fleetspeak::Message;
 
 fn main() -> std::io::Result<()> {
@@ -14,15 +13,13 @@ fn main() -> std::io::Result<()> {
     loop {
         let packet = fleetspeak::receive_with_heartbeat(Duration::from_secs(1))?;
 
-        let request: StringValue = packet.data;
-
-        let mut response = StringValue::new();
-        response.set_value(format!("Hello {}!", request.get_value()));
+        let request = std::str::from_utf8(&packet.data).unwrap();
+        let response = format!("Hello, {}!", request);
 
         fleetspeak::send(Message {
             service: String::from("greeter"),
             kind: None,
-            data: response,
+            data: response.into_bytes(),
         })?;
     }
 }
