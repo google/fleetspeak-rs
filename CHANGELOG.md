@@ -1,3 +1,9 @@
+Upcoming release
+================
+
+  * Messages can contain arbitrary data and usage of the `protobuf` crate is now
+    an implementation detail.
+
 0.2.1 (2022-06-13)
 ==================
 
