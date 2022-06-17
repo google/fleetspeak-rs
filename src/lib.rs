@@ -126,10 +126,13 @@ pub fn send(message: Message) -> Result<(), WriteError> {
 /// # Examples
 ///
 /// ```no_run
-/// match fleetspeak::receive() {
-///     Ok(message) => println!("Hello, {}!", std::str::from_utf8(&message.data).unwrap()),
-///     Err(error) => eprintln!("failed to receive the message: {}", error),
-/// }
+/// let message = fleetspeak::receive()
+///     .expect("message delivery failure");
+///
+/// let name = std::str::from_utf8(&message.data)
+///     .expect("invalid message content");
+///
+/// println!("Hello, {name}!");
 /// ```
 pub fn receive() -> Result<Message, ReadError> {
     locked(&CONNECTION.input, |buf| self::connection::receive(buf))
@@ -155,10 +158,13 @@ pub fn receive() -> Result<Message, ReadError> {
 /// ```no_run
 /// use std::time::Duration;
 ///
-/// match fleetspeak::receive_with_heartbeat(Duration::from_secs(1)) {
-///     Ok(message) => println!("Hello, {}!", std::str::from_utf8(&message.data).unwrap()),
-///     Err(error) => eprintln!("failed to collected the message: {}", error),
-/// }
+/// let message = fleetspeak::receive_with_heartbeat(Duration::from_secs(1))
+///     .expect("message delivery failure");
+///
+/// let name = std::str::from_utf8(&message.data)
+///     .expect("invalid message content");
+///
+/// println!("Hello, {name}!");
 /// ```
 pub fn receive_with_heartbeat(rate: Duration) -> Result<Message, ReadError> {
     // TODO: Refactor this code once `!` stabilizes.
