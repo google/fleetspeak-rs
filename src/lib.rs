@@ -100,21 +100,14 @@ pub fn startup(version: &str) -> Result<(), WriteError> {
 ///
 /// ```no_run
 /// use fleetspeak::Message;
-/// use protobuf::well_known_types::StringValue;
-///
-/// let mut message = StringValue::new();
-/// message.set_value(String::from("Hello, World!"));
 ///
 /// fleetspeak::send(Message {
 ///     service: String::from("example"),
 ///     kind: None,
-///     data: message,
+///     data: String::from("Hello, world!").into_bytes(),
 /// }).expect("failed to send the message");
 /// ```
-pub fn send<M>(message: Message<M>) -> Result<(), WriteError>
-where
-    M: protobuf::Message,
-{
+pub fn send(message: Message) -> Result<(), WriteError> {
     locked(&CONNECTION.output, |buf| self::connection::send(buf, message))
 }
 
@@ -133,17 +126,12 @@ where
 /// # Examples
 ///
 /// ```no_run
-/// use protobuf::well_known_types::StringValue;
-///
-/// match fleetspeak::receive::<StringValue>() {
-///     Ok(message) => println!("Hello, {}!", message.data.get_value()),
+/// match fleetspeak::receive() {
+///     Ok(message) => println!("Hello, {}!", std::str::from_utf8(&message.data).unwrap()),
 ///     Err(error) => eprintln!("failed to receive the message: {}", error),
 /// }
 /// ```
-pub fn receive<M>() -> Result<Message<M>, ReadError>
-where
-    M: protobuf::Message,
-{
+pub fn receive() -> Result<Message, ReadError> {
     locked(&CONNECTION.input, |buf| self::connection::receive(buf))
 }
 
@@ -167,17 +155,12 @@ where
 /// ```no_run
 /// use std::time::Duration;
 ///
-/// use protobuf::well_known_types::StringValue;
-///
-/// match fleetspeak::receive_with_heartbeat::<StringValue>(Duration::from_secs(1)) {
-///     Ok(message) => println!("Hello, {}!", message.data.get_value()),
+/// match fleetspeak::receive_with_heartbeat(Duration::from_secs(1)) {
+///     Ok(message) => println!("Hello, {}!", std::str::from_utf8(&message.data).unwrap()),
 ///     Err(error) => eprintln!("failed to collected the message: {}", error),
 /// }
 /// ```
-pub fn receive_with_heartbeat<M>(rate: Duration) -> Result<Message<M>, ReadError>
-where
-    M: protobuf::Message + 'static,
-{
+pub fn receive_with_heartbeat(rate: Duration) -> Result<Message, ReadError> {
     // TODO: Refactor this code once `!` stabilizes.
     let (sender, receiver) = std::sync::mpsc::channel();
 

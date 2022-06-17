@@ -15,13 +15,13 @@ use super::{ReadError, WriteError};
 /// Fleetspeak. This is a simplified version of the underlying Protocol Buffers
 /// message that exposes too much irrelevant fields and makes the protocol easy
 /// to misuse.
-pub struct Message<M: protobuf::Message> {
+pub struct Message {
     /// A name of the server-side service that sent or should receive the data.
     pub service: String,
     /// An optional message type that can be used by the server-side service.
     pub kind: Option<String>,
-    /// A message to sent to the specified service.
-    pub data: M,
+    /// The data to sent to the specified service.
+    pub data: Vec<u8>,
 }
 
 /// Executes the handshake procedure.
@@ -95,16 +95,15 @@ where
 /// The message is sent to the server-side `service` and tagged with the
 /// `kind` type. Note that this message type is rather irrelevant for
 /// Fleetspeak and it is up to the service what to do with this information.
-pub fn send<W, M>(output: &mut W, message: Message<M>) -> Result<(), WriteError>
+pub fn send<W>(output: &mut W, message: Message) -> Result<(), WriteError>
 where
     W: Write,
-    M: protobuf::Message,
 {
     let mut proto = fleetspeak_proto::common::Message::new();
     proto.set_message_type(message.kind.unwrap_or_else(String::new));
     proto.mut_destination().set_service_name(message.service);
-    proto.mut_data().set_type_url(type_url(&message.data));
-    proto.mut_data().set_value(message.data.write_to_bytes()?);
+    // TODO: Consider a way of providing the type URL of the data being sent.
+    proto.mut_data().set_value(message.data);
 
     write_raw(output, proto)
 }
@@ -114,10 +113,9 @@ where
 /// This function will block until there is a message to be read in the
 /// input. Errors are reported in case of any I/O failure or if the read
 /// message was malformed (e.g. it cannot be parsed to the expected type).
-pub fn receive<R, M>(input: &mut R) -> Result<Message<M>, ReadError>
+pub fn receive<R>(input: &mut R) -> Result<Message, ReadError>
 where
     R: Read,
-    M: protobuf::Message,
 {
     let mut msg = read_raw(input)?;
 
@@ -136,7 +134,7 @@ where
     // should we error-out or return a default value? For the time being we
     // stick to the default approach, but if this proves to be not working
     // well in practice, it might be reconsidered.
-    let data = if msg.has_data() {
+    let mut data = if msg.has_data() {
         msg.take_data()
     } else {
         log::warn!(target: "fleetspeak", "empty message from '{}'", service);
@@ -146,7 +144,7 @@ where
     Ok(Message {
         service: service,
         kind: Some(msg.message_type),
-        data: protobuf::parse_from_bytes(&data.value[..])?,
+        data: data.take_value(),
     })
 }
 
