@@ -185,6 +185,7 @@ where
     input.read_exact(&mut buf[..])?;
     read_magic(input)?;
 
+    // TODO: This can be optimized with `protobuf::read_from_bytes`.
     Ok(protobuf::parse_from_bytes(&buf[..])?)
 }
 
