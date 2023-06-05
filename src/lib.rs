@@ -28,7 +28,6 @@ use lazy_static::lazy_static;
 use log::{info, error};
 
 pub use self::connection::Message;
-pub use self::error::{ReadError, WriteError};
 
 /// Sends a heartbeat signal to the Fleetspeak client.
 ///
@@ -37,8 +36,8 @@ pub use self::error::{ReadError, WriteError};
 ///
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
-pub fn heartbeat() -> Result<(), WriteError> {
-    locked(&CONNECTION.output, |buf| Ok(self::connection::heartbeat(buf)?))
+pub fn heartbeat() -> Result<(), std::io::Error> {
+    locked(&CONNECTION.output, |buf| self::connection::heartbeat(buf))
 }
 
 /// Sends a heartbeat signal to the Fleetspeak client but no more frequently
@@ -51,7 +50,7 @@ pub fn heartbeat() -> Result<(), WriteError> {
 /// See documentation for the [`heartbeat`] function for more details.
 ///
 /// [`heartbeat`]: crate::heartbeat
-pub fn heartbeat_with_throttle(rate: Duration) -> Result<(), WriteError> {
+pub fn heartbeat_with_throttle(rate: Duration) -> Result<(), std::io::Error> {
     lazy_static! {
         static ref LAST_HEARTBEAT: Mutex<Option<Instant>> = Mutex::new(None);
     }
@@ -82,8 +81,8 @@ pub fn heartbeat_with_throttle(rate: Duration) -> Result<(), WriteError> {
 ///
 /// The `version` string should contain a self-reported version of the service.
 /// This data is used primarily for statistics.
-pub fn startup(version: &str) -> Result<(), WriteError> {
-    locked(&CONNECTION.output, |buf| Ok(self::connection::startup(buf, version)?))
+pub fn startup(version: &str) -> Result<(), std::io::Error> {
+    locked(&CONNECTION.output, |buf| self::connection::startup(buf, version))
 }
 
 /// Sends the message to the Fleetspeak server.
@@ -107,8 +106,8 @@ pub fn startup(version: &str) -> Result<(), WriteError> {
 ///     data: String::from("Hello, world!").into_bytes(),
 /// }).expect("failed to send the message");
 /// ```
-pub fn send(message: Message) -> Result<(), WriteError> {
-    locked(&CONNECTION.output, |buf| Ok(self::connection::send(buf, message)?))
+pub fn send(message: Message) -> Result<(), std::io::Error> {
+    locked(&CONNECTION.output, |buf| self::connection::send(buf, message))
 }
 
 /// Receives a message from the Fleetspeak server.
@@ -134,8 +133,8 @@ pub fn send(message: Message) -> Result<(), WriteError> {
 ///
 /// println!("Hello, {name}!");
 /// ```
-pub fn receive() -> Result<Message, ReadError> {
-    locked(&CONNECTION.input, |buf| Ok(self::connection::receive(buf)?))
+pub fn receive() -> Result<Message, std::io::Error> {
+    locked(&CONNECTION.input, |buf| self::connection::receive(buf))
 }
 
 /// Receive a message from the Fleetspeak server, heartbeating in background.
@@ -166,7 +165,7 @@ pub fn receive() -> Result<Message, ReadError> {
 ///
 /// println!("Hello, {name}!");
 /// ```
-pub fn receive_with_heartbeat(rate: Duration) -> Result<Message, ReadError> {
+pub fn receive_with_heartbeat(rate: Duration) -> Result<Message, std::io::Error> {
     // TODO: Refactor this code once `!` stabilizes.
     let (sender, receiver) = std::sync::mpsc::channel();
 
