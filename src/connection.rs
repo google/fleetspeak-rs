@@ -7,8 +7,6 @@ use std::io::{Read, Write};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-use super::{ReadError, WriteError};
-
 /// A Fleetspeak client communication message.
 ///
 /// This structure represents incoming or outgoing message objects delivered by
@@ -52,7 +50,7 @@ where
 ///
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
-pub fn heartbeat<W>(output: &mut W) -> Result<(), WriteError>
+pub fn heartbeat<W>(output: &mut W) -> Result<(), std::io::Error>
 where
     W: Write,
 {
@@ -71,7 +69,7 @@ where
 ///
 /// The `version` string should contain a self-reported version of the
 /// service. This data is used primarily for statistics.
-pub fn startup<W>(output: &mut W, version: &str) -> Result<(), WriteError>
+pub fn startup<W>(output: &mut W, version: &str) -> Result<(), std::io::Error>
 where
     W: Write,
 {
@@ -95,7 +93,7 @@ where
 /// The message is sent to the server-side `service` and tagged with the
 /// `kind` type. Note that this message type is rather irrelevant for
 /// Fleetspeak and it is up to the service what to do with this information.
-pub fn send<W>(output: &mut W, message: Message) -> Result<(), WriteError>
+pub fn send<W>(output: &mut W, message: Message) -> Result<(), std::io::Error>
 where
     W: Write,
 {
@@ -113,7 +111,7 @@ where
 /// This function will block until there is a message to be read in the
 /// input. Errors are reported in case of any I/O failure or if the read
 /// message was malformed (e.g. it cannot be parsed to the expected type).
-pub fn receive<R>(input: &mut R) -> Result<Message, ReadError>
+pub fn receive<R>(input: &mut R) -> Result<Message, std::io::Error>
 where
     R: Read,
 {
@@ -127,7 +125,8 @@ where
     let service = if msg.has_source() {
         msg.take_source().take_service_name()
     } else {
-        return Err(ReadError::malformed("missing source address"))
+        use std::io::ErrorKind::InvalidData;
+        return Err(std::io::Error::new(InvalidData, "missing source address"));
     };
 
     // It is not clear what is the best approach here. If there is no data,
@@ -156,7 +155,7 @@ where
 /// Note that this call will fail only if the message cannot be written to
 /// the output or cannot be properly encoded but will succeed even if the
 /// message is not what the server expects.
-fn write_raw<W>(output: &mut W, msg: fleetspeak_proto::common::Message) -> Result<(), WriteError>
+fn write_raw<W>(output: &mut W, msg: fleetspeak_proto::common::Message) -> Result<(), std::io::Error>
 where
     W: Write,
 {
@@ -175,7 +174,7 @@ where
 /// This function will block until there is a message to be read from the
 /// input. It will fail in case of any I/O error or if the message cannot
 /// be parsed as a Fleetspeak message.
-fn read_raw<R>(input: &mut R) -> Result<fleetspeak_proto::common::Message, ReadError>
+fn read_raw<R>(input: &mut R) -> Result<fleetspeak_proto::common::Message, std::io::Error>
 where
     R: Read,
 {
@@ -189,7 +188,7 @@ where
 }
 
 /// Writes the Fleetspeak magic to the output buffer.
-fn write_magic<W>(output: &mut W) -> Result<(), WriteError>
+fn write_magic<W>(output: &mut W) -> Result<(), std::io::Error>
 where
     W: Write,
 {
@@ -199,13 +198,15 @@ where
 }
 
 /// Reads the Fleetspeak magic from the input buffer.
-fn read_magic<R>(input: &mut R) -> Result<(), ReadError>
+fn read_magic<R>(input: &mut R) -> Result<(), std::io::Error>
 where
     R: Read,
 {
     let magic = input.read_u32::<LittleEndian>()?;
     if magic != MAGIC {
-        return Err(ReadError::Magic(magic));
+        return Err(crate::error::InvalidMagicError {
+            magic,
+        }.into());
     }
 
     Ok(())
