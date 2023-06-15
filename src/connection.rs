@@ -208,12 +208,34 @@ where
 {
     let magic = input.read_u32::<LittleEndian>()?;
     if magic != MAGIC {
-        return Err(crate::error::InvalidMagicError {
-            magic,
-        }.into());
+        return Err(InvalidMagicError { magic }.into());
     }
 
     Ok(())
+}
+
+/// Invalid magic number was read from the input stream.
+#[derive(Debug)]
+struct InvalidMagicError {
+    /// Invalid magic that was read from the input stream.
+    magic: u32,
+}
+
+impl std::fmt::Display for InvalidMagicError {
+
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(fmt, "invalid Fleetspeak magic: 0x{:08x}", self.magic)
+    }
+}
+
+impl std::error::Error for InvalidMagicError {
+}
+
+impl From<InvalidMagicError> for std::io::Error {
+
+    fn from(error: InvalidMagicError) -> std::io::Error {
+        std::io::Error::new(std::io::ErrorKind::InvalidData, error)
+    }
 }
 
 const MAGIC: u32 = 0xf1ee1001;

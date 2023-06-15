@@ -18,7 +18,6 @@
 //! [Fleetspeak]: https://github.com/google/fleetspeak
 
 mod connection;
-mod error;
 
 use std::fs::File;
 use std::sync::Mutex;
