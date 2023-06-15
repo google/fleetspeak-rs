@@ -117,11 +117,15 @@ where
 {
     let mut msg = read_raw(input)?;
 
-    // While missing source address might not be consider a critical error
-    // in most cases, for our own sanity we just disregard such messages.
+    // While missing source address might not be considered a critical error
+    // in most cases, for our own sanity we fail for such messages as well.
     // Allowing such behaviour might indicate a more severe problem with
     // Fleetspeak and ignoring it simply masks the issue. This might be
     // reconsidered in the future.
+    //
+    // We could also return a "catchable" error and only drop the message rather
+    // than failing hard but not to introduce awkward error hierarchy and adding
+    // a lot of complexity to the code without much benefit.
     let service = if msg.has_source() {
         msg.take_source().take_service_name()
     } else {
