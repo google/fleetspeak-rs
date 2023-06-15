@@ -36,7 +36,7 @@ pub use self::connection::Message;
 ///
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
-pub fn heartbeat() -> Result<(), std::io::Error> {
+pub fn heartbeat() -> std::io::Result<()> {
     locked(&CONNECTION.output, |buf| self::connection::heartbeat(buf))
 }
 
@@ -50,7 +50,7 @@ pub fn heartbeat() -> Result<(), std::io::Error> {
 /// See documentation for the [`heartbeat`] function for more details.
 ///
 /// [`heartbeat`]: crate::heartbeat
-pub fn heartbeat_with_throttle(rate: Duration) -> Result<(), std::io::Error> {
+pub fn heartbeat_with_throttle(rate: Duration) -> std::io::Result<()> {
     lazy_static! {
         static ref LAST_HEARTBEAT: Mutex<Option<Instant>> = Mutex::new(None);
     }
@@ -81,7 +81,7 @@ pub fn heartbeat_with_throttle(rate: Duration) -> Result<(), std::io::Error> {
 ///
 /// The `version` string should contain a self-reported version of the service.
 /// This data is used primarily for statistics.
-pub fn startup(version: &str) -> Result<(), std::io::Error> {
+pub fn startup(version: &str) -> std::io::Result<()> {
     locked(&CONNECTION.output, |buf| self::connection::startup(buf, version))
 }
 
@@ -106,7 +106,7 @@ pub fn startup(version: &str) -> Result<(), std::io::Error> {
 ///     data: String::from("Hello, world!").into_bytes(),
 /// }).expect("failed to send the message");
 /// ```
-pub fn send(message: Message) -> Result<(), std::io::Error> {
+pub fn send(message: Message) -> std::io::Result<()> {
     locked(&CONNECTION.output, |buf| self::connection::send(buf, message))
 }
 
@@ -133,7 +133,7 @@ pub fn send(message: Message) -> Result<(), std::io::Error> {
 ///
 /// println!("Hello, {name}!");
 /// ```
-pub fn receive() -> Result<Message, std::io::Error> {
+pub fn receive() -> std::io::Result<Message> {
     locked(&CONNECTION.input, |buf| self::connection::receive(buf))
 }
 
@@ -165,7 +165,7 @@ pub fn receive() -> Result<Message, std::io::Error> {
 ///
 /// println!("Hello, {name}!");
 /// ```
-pub fn receive_with_heartbeat(rate: Duration) -> Result<Message, std::io::Error> {
+pub fn receive_with_heartbeat(rate: Duration) -> std::io::Result<Message> {
     // TODO: Refactor this code once `!` stabilizes.
     let (sender, receiver) = std::sync::mpsc::channel();
 

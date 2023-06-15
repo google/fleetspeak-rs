@@ -50,7 +50,7 @@ where
 ///
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
-pub fn heartbeat<W>(output: &mut W) -> Result<(), std::io::Error>
+pub fn heartbeat<W>(output: &mut W) -> std::io::Result<()>
 where
     W: Write,
 {
@@ -69,7 +69,7 @@ where
 ///
 /// The `version` string should contain a self-reported version of the
 /// service. This data is used primarily for statistics.
-pub fn startup<W>(output: &mut W, version: &str) -> Result<(), std::io::Error>
+pub fn startup<W>(output: &mut W, version: &str) -> std::io::Result<()>
 where
     W: Write,
 {
@@ -93,7 +93,7 @@ where
 /// The message is sent to the server-side `service` and tagged with the
 /// `kind` type. Note that this message type is rather irrelevant for
 /// Fleetspeak and it is up to the service what to do with this information.
-pub fn send<W>(output: &mut W, message: Message) -> Result<(), std::io::Error>
+pub fn send<W>(output: &mut W, message: Message) -> std::io::Result<()>
 where
     W: Write,
 {
@@ -111,7 +111,7 @@ where
 /// This function will block until there is a message to be read in the
 /// input. Errors are reported in case of any I/O failure or if the read
 /// message was malformed (e.g. it cannot be parsed to the expected type).
-pub fn receive<R>(input: &mut R) -> Result<Message, std::io::Error>
+pub fn receive<R>(input: &mut R) -> std::io::Result<Message>
 where
     R: Read,
 {
@@ -155,7 +155,7 @@ where
 /// Note that this call will fail only if the message cannot be written to
 /// the output or cannot be properly encoded but will succeed even if the
 /// message is not what the server expects.
-fn write_raw<W>(output: &mut W, msg: fleetspeak_proto::common::Message) -> Result<(), std::io::Error>
+fn write_raw<W>(output: &mut W, msg: fleetspeak_proto::common::Message) -> std::io::Result<()>
 where
     W: Write,
 {
@@ -174,7 +174,7 @@ where
 /// This function will block until there is a message to be read from the
 /// input. It will fail in case of any I/O error or if the message cannot
 /// be parsed as a Fleetspeak message.
-fn read_raw<R>(input: &mut R) -> Result<fleetspeak_proto::common::Message, std::io::Error>
+fn read_raw<R>(input: &mut R) -> std::io::Result<fleetspeak_proto::common::Message>
 where
     R: Read,
 {
@@ -188,7 +188,7 @@ where
 }
 
 /// Writes the Fleetspeak magic to the output buffer.
-fn write_magic<W>(output: &mut W) -> Result<(), std::io::Error>
+fn write_magic<W>(output: &mut W) -> std::io::Result<()>
 where
     W: Write,
 {
@@ -198,7 +198,7 @@ where
 }
 
 /// Reads the Fleetspeak magic from the input buffer.
-fn read_magic<R>(input: &mut R) -> Result<(), std::io::Error>
+fn read_magic<R>(input: &mut R) -> std::io::Result<()>
 where
     R: Read,
 {
