@@ -19,12 +19,10 @@
 
 mod io;
 
-use std::fs::File;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use lazy_static::lazy_static;
-use log::info;
 
 /// A Fleetspeak client communication message.
 ///
@@ -213,8 +211,8 @@ pub fn receive_with_heartbeat(rate: Duration) -> Message {
 /// sending heartbeat signals) when another thread might be busy with reading
 /// messages.
 struct Connection {
-    input: Mutex<File>,
-    output: Mutex<File>,
+    input: Mutex<std::fs::File>,
+    output: Mutex<std::fs::File>,
 }
 
 lazy_static! {
@@ -225,7 +223,7 @@ lazy_static! {
         use self::io::handshake;
         handshake(&mut input, &mut output).expect("handshake failure");
 
-        info!(target: "fleetspeak", "handshake successful");
+        log::info!(target: "fleetspeak", "handshake successful");
 
         Connection {
             input: Mutex::new(input),
@@ -243,9 +241,9 @@ lazy_static! {
 ///
 /// Any I/O error returned by the executed function indicates a fatal connection
 /// failure and ends with a panic.
-fn execute<F, T>(mutex: &Mutex<File>, f: F) -> T
+fn execute<F, T>(mutex: &Mutex<std::fs::File>, f: F) -> T
 where
-    F: FnOnce(&mut File) -> std::io::Result<T>,
+    F: FnOnce(&mut std::fs::File) -> std::io::Result<T>,
 {
     let mut file = mutex.lock().expect("poisoned connection mutex");
     match f(&mut file) {
@@ -259,7 +257,7 @@ where
 /// Note that this function will panic if the environment variable `var` is not
 /// a valid file descriptor (in which case the library cannot be initialized and
 /// the service is unlikely to work anyway).
-fn open(var: &str) -> File {
+fn open(var: &str) -> std::fs::File {
     let fd = std::env::var(var)
         .expect(&format!("invalid variable `{}`", var))
         .parse()
