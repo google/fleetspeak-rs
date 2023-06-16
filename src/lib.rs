@@ -172,18 +172,20 @@ pub fn receive() -> Message {
 /// println!("Hello, {name}!");
 /// ```
 pub fn receive_with_heartbeat(rate: Duration) -> Message {
-    // TODO: Refactor this code once `!` stabilizes.
-    let (sender, receiver) = std::sync::mpsc::channel();
+    // TODO(rust-lang/rust#35121): Replace with `!` once stable.
+    enum Never {
+    }
+
+    let (sender, receiver) = std::sync::mpsc::channel::<Never>();
 
     std::thread::spawn(move || {
         loop {
             use std::sync::mpsc::TryRecvError::*;
 
-            // The heartbeat thread should stop itself when it receives a signal
-            // to do so (or when the channel is closed). Otherwise, it should
-            // keep heartbeating.
+            // We keep hearbeating until the sender disconnects (in which case
+            // the receiver will receive a disconnection error).
             match receiver.try_recv() {
-                Ok(()) => return,
+                Ok(never) => match never {},
                 Err(Empty) => (),
                 Err(Disconnected) => return,
             }
@@ -195,10 +197,10 @@ pub fn receive_with_heartbeat(rate: Duration) -> Message {
 
     let message = receive();
 
-    // Notify the heartbeat thread to shut down. We do not really care whether
-    // the message was really delivered as this can fail only if the channel
-    // disconnected (and this can happen only if the thread is already dead).
-    let _ = sender.send(());
+    // Notify the heartbeat thread to shut down. However, instead of sending any
+    // real message we just shut the sender down and the receiver will receive
+    // a disconnection error.
+    drop(sender);
 
     message
 }
