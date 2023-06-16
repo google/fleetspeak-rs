@@ -217,11 +217,11 @@ struct Connection {
 
 lazy_static! {
     static ref CONNECTION: Connection = {
-        let mut input = open("FLEETSPEAK_COMMS_CHANNEL_INFD");
-        let mut output = open("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
+        let mut input = file_from_env_var("FLEETSPEAK_COMMS_CHANNEL_INFD");
+        let mut output = file_from_env_var("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
 
-        use self::io::handshake;
-        handshake(&mut input, &mut output).expect("handshake failure");
+        crate::io::handshake(&mut input, &mut output)
+            .expect("handshake failure");
 
         log::info!(target: "fleetspeak", "handshake successful");
 
@@ -252,12 +252,14 @@ where
     }
 }
 
-/// Opens a file object pointed by an environment variable.
+/// Creates a [`File`] object specified in the given environment variable.
 ///
 /// Note that this function will panic if the environment variable `var` is not
 /// a valid file descriptor (in which case the library cannot be initialized and
 /// the service is unlikely to work anyway).
-fn open(var: &str) -> std::fs::File {
+///
+/// [`File`]: std::fs::File
+fn file_from_env_var(var: &str) -> std::fs::File {
     let fd = std::env::var(var)
         .expect(&format!("invalid variable `{}`", var))
         .parse()
