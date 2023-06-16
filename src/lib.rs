@@ -36,7 +36,7 @@ pub use self::io::Message;
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
 pub fn heartbeat() {
-    execute(&CONNECTION.output, |buf| self::io::heartbeat(buf))
+    execute(&CONNECTION.output, |buf| self::io::write_heartbeat(buf))
 }
 
 /// Sends a heartbeat signal to the Fleetspeak client but no more frequently
@@ -79,7 +79,7 @@ pub fn heartbeat_with_throttle(rate: Duration) {
 /// The `version` string should contain a self-reported version of the service.
 /// This data is used primarily for statistics.
 pub fn startup(version: &str) {
-    execute(&CONNECTION.output, |buf| self::io::startup(buf, version))
+    execute(&CONNECTION.output, |buf| self::io::write_startup(buf, version))
 }
 
 /// Sends the message to the Fleetspeak server.
@@ -104,7 +104,7 @@ pub fn startup(version: &str) {
 /// });
 /// ```
 pub fn send(message: Message) {
-    execute(&CONNECTION.output, |buf| self::io::send(buf, message))
+    execute(&CONNECTION.output, |buf| self::io::write_message(buf, message))
 }
 
 /// Receives a message from the Fleetspeak server.
@@ -130,7 +130,7 @@ pub fn send(message: Message) {
 /// println!("Hello, {name}!");
 /// ```
 pub fn receive() -> Message {
-    execute(&CONNECTION.input, |buf| self::io::receive(buf))
+    execute(&CONNECTION.input, |buf| self::io::read_message(buf))
 }
 
 /// Receive a message from the Fleetspeak server, heartbeating in background.
