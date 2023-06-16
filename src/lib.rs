@@ -17,7 +17,7 @@
 //!
 //! [Fleetspeak]: https://github.com/google/fleetspeak
 
-mod connection;
+mod io;
 
 use std::fs::File;
 use std::sync::Mutex;
@@ -26,7 +26,7 @@ use std::time::{Duration, Instant};
 use lazy_static::lazy_static;
 use log::info;
 
-pub use self::connection::Message;
+pub use self::io::Message;
 
 /// Sends a heartbeat signal to the Fleetspeak client.
 ///
@@ -36,7 +36,7 @@ pub use self::connection::Message;
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
 pub fn heartbeat() {
-    execute(&CONNECTION.output, |buf| self::connection::heartbeat(buf))
+    execute(&CONNECTION.output, |buf| self::io::heartbeat(buf))
 }
 
 /// Sends a heartbeat signal to the Fleetspeak client but no more frequently
@@ -79,7 +79,7 @@ pub fn heartbeat_with_throttle(rate: Duration) {
 /// The `version` string should contain a self-reported version of the service.
 /// This data is used primarily for statistics.
 pub fn startup(version: &str) {
-    execute(&CONNECTION.output, |buf| self::connection::startup(buf, version))
+    execute(&CONNECTION.output, |buf| self::io::startup(buf, version))
 }
 
 /// Sends the message to the Fleetspeak server.
@@ -104,7 +104,7 @@ pub fn startup(version: &str) {
 /// });
 /// ```
 pub fn send(message: Message) {
-    execute(&CONNECTION.output, |buf| self::connection::send(buf, message))
+    execute(&CONNECTION.output, |buf| self::io::send(buf, message))
 }
 
 /// Receives a message from the Fleetspeak server.
@@ -130,7 +130,7 @@ pub fn send(message: Message) {
 /// println!("Hello, {name}!");
 /// ```
 pub fn receive() -> Message {
-    execute(&CONNECTION.input, |buf| self::connection::receive(buf))
+    execute(&CONNECTION.input, |buf| self::io::receive(buf))
 }
 
 /// Receive a message from the Fleetspeak server, heartbeating in background.
@@ -209,7 +209,7 @@ lazy_static! {
         let mut input = open("FLEETSPEAK_COMMS_CHANNEL_INFD");
         let mut output = open("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
 
-        use self::connection::handshake;
+        use self::io::handshake;
         handshake(&mut input, &mut output).expect("handshake failure");
 
         info!(target: "fleetspeak", "handshake successful");
