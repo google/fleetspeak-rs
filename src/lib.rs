@@ -18,17 +18,15 @@
 //! [Fleetspeak]: https://github.com/google/fleetspeak
 
 mod connection;
-mod error;
 
 use std::fs::File;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use lazy_static::lazy_static;
-use log::{info, error};
+use log::info;
 
 pub use self::connection::Message;
-pub use self::error::{ReadError, WriteError};
 
 /// Sends a heartbeat signal to the Fleetspeak client.
 ///
@@ -37,8 +35,8 @@ pub use self::error::{ReadError, WriteError};
 ///
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
-pub fn heartbeat() -> Result<(), WriteError> {
-    locked(&CONNECTION.output, |buf| self::connection::heartbeat(buf))
+pub fn heartbeat() {
+    execute(&CONNECTION.output, |buf| self::connection::heartbeat(buf))
 }
 
 /// Sends a heartbeat signal to the Fleetspeak client but no more frequently
@@ -51,7 +49,7 @@ pub fn heartbeat() -> Result<(), WriteError> {
 /// See documentation for the [`heartbeat`] function for more details.
 ///
 /// [`heartbeat`]: crate::heartbeat
-pub fn heartbeat_with_throttle(rate: Duration) -> Result<(), WriteError> {
+pub fn heartbeat_with_throttle(rate: Duration) {
     lazy_static! {
         static ref LAST_HEARTBEAT: Mutex<Option<Instant>> = Mutex::new(None);
     }
@@ -63,15 +61,13 @@ pub fn heartbeat_with_throttle(rate: Duration) -> Result<(), WriteError> {
         Some(last_heartbeat) if last_heartbeat.elapsed() < rate => {
             // Do nothing if the last heartbeat happened more recently than the
             // specified heartbeat rate.
-            return Ok(());
+            return;
         }
         _ => (),
     }
 
-    heartbeat()?;
+    heartbeat();
     *last_heartbeat = Some(Instant::now());
-
-    Ok(())
 }
 
 /// Sends a system message with startup information to the Fleetspeak client.
@@ -82,8 +78,8 @@ pub fn heartbeat_with_throttle(rate: Duration) -> Result<(), WriteError> {
 ///
 /// The `version` string should contain a self-reported version of the service.
 /// This data is used primarily for statistics.
-pub fn startup(version: &str) -> Result<(), WriteError> {
-    locked(&CONNECTION.output, |buf| self::connection::startup(buf, version))
+pub fn startup(version: &str) {
+    execute(&CONNECTION.output, |buf| self::connection::startup(buf, version))
 }
 
 /// Sends the message to the Fleetspeak server.
@@ -105,10 +101,10 @@ pub fn startup(version: &str) -> Result<(), WriteError> {
 ///     service: String::from("example"),
 ///     kind: None,
 ///     data: String::from("Hello, world!").into_bytes(),
-/// }).expect("failed to send the message");
+/// });
 /// ```
-pub fn send(message: Message) -> Result<(), WriteError> {
-    locked(&CONNECTION.output, |buf| self::connection::send(buf, message))
+pub fn send(message: Message) {
+    execute(&CONNECTION.output, |buf| self::connection::send(buf, message))
 }
 
 /// Receives a message from the Fleetspeak server.
@@ -126,16 +122,15 @@ pub fn send(message: Message) -> Result<(), WriteError> {
 /// # Examples
 ///
 /// ```no_run
-/// let message = fleetspeak::receive()
-///     .expect("message delivery failure");
+/// let message = fleetspeak::receive();
 ///
 /// let name = std::str::from_utf8(&message.data)
 ///     .expect("invalid message content");
 ///
 /// println!("Hello, {name}!");
 /// ```
-pub fn receive() -> Result<Message, ReadError> {
-    locked(&CONNECTION.input, |buf| self::connection::receive(buf))
+pub fn receive() -> Message {
+    execute(&CONNECTION.input, |buf| self::connection::receive(buf))
 }
 
 /// Receive a message from the Fleetspeak server, heartbeating in background.
@@ -158,15 +153,14 @@ pub fn receive() -> Result<Message, ReadError> {
 /// ```no_run
 /// use std::time::Duration;
 ///
-/// let message = fleetspeak::receive_with_heartbeat(Duration::from_secs(1))
-///     .expect("message delivery failure");
+/// let message = fleetspeak::receive_with_heartbeat(Duration::from_secs(1));
 ///
 /// let name = std::str::from_utf8(&message.data)
 ///     .expect("invalid message content");
 ///
 /// println!("Hello, {name}!");
 /// ```
-pub fn receive_with_heartbeat(rate: Duration) -> Result<Message, ReadError> {
+pub fn receive_with_heartbeat(rate: Duration) -> Message {
     // TODO: Refactor this code once `!` stabilizes.
     let (sender, receiver) = std::sync::mpsc::channel();
 
@@ -183,33 +177,19 @@ pub fn receive_with_heartbeat(rate: Duration) -> Result<Message, ReadError> {
                 Err(Disconnected) => return,
             }
 
-            // Ignoring heartbeat errors is not great, but they can occur only
-            // in very rare cases and any subsequent write operations are going
-            // to fail soon anyway. Hence, we drop the error on the floor and
-            // shut the thread down, hoping that the main thread will notice the
-            // problem as soon as it tries to write something. In case the main
-            // thread blocks indefinitely, Fleetspeak should figure out that the
-            // service is unresponsive and kill it eventually.
-            match heartbeat() {
-                Ok(()) => (),
-                Err(error) => {
-                    error!(target: "fleetspeak", "heartbeat error: {}", error);
-                    return;
-                },
-            }
-
+            heartbeat();
             std::thread::sleep(rate);
         }
     });
 
-    let message = receive()?;
+    let message = receive();
 
     // Notify the heartbeat thread to shut down. We do not really care whether
     // the message was really delivered as this can fail only if the channel
     // disconnected (and this can happen only if the thread is already dead).
     let _ = sender.send(());
 
-    Ok(message)
+    message
 }
 
 /// A connection to the Fleetspeak client.
@@ -247,12 +227,18 @@ lazy_static! {
 /// result. This should not be a problem in practice, because mutex poisoning
 /// is a result of one of the threads being aborted. In case of a such scenario,
 /// it is likely the service needs to be restarted anyway.
-fn locked<F, T, E>(mutex: &Mutex<File>, f: F) -> Result<T, E>
+///
+/// Any I/O error returned by the executed function indicates a fatal connection
+/// failure and ends with a panic.
+fn execute<F, T>(mutex: &Mutex<File>, f: F) -> T
 where
-    F: FnOnce(&mut File) -> Result<T, E>
+    F: FnOnce(&mut File) -> std::io::Result<T>,
 {
     let mut file = mutex.lock().expect("poisoned connection mutex");
-    f(&mut file)
+    match f(&mut file) {
+        Ok(value) => value,
+        Err(error) => panic!("connection failure: {}", error),
+    }
 }
 
 /// Opens a file object pointed by an environment variable.

@@ -7,11 +7,11 @@ use std::time::Duration;
 
 use fleetspeak::Message;
 
-fn main() -> std::io::Result<()> {
-    fleetspeak::startup("0.0.1")?;
+fn main() {
+    fleetspeak::startup("0.0.1");
 
     loop {
-        let packet = fleetspeak::receive_with_heartbeat(Duration::from_secs(1))?;
+        let packet = fleetspeak::receive_with_heartbeat(Duration::from_secs(1));
 
         let request = std::str::from_utf8(&packet.data).unwrap();
         let response = format!("Hello, {}!", request);
@@ -20,6 +20,6 @@ fn main() -> std::io::Result<()> {
             service: String::from("greeter"),
             kind: None,
             data: response.into_bytes(),
-        })?;
+        });
     }
 }
