@@ -7,20 +7,7 @@ use std::io::{Read, Write};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-/// A Fleetspeak client communication message.
-///
-/// This structure represents incoming or outgoing message objects delivered by
-/// Fleetspeak. This is a simplified version of the underlying Protocol Buffers
-/// message that exposes too much irrelevant fields and makes the protocol easy
-/// to misuse.
-pub struct Message {
-    /// A name of the server-side service that sent or should receive the data.
-    pub service: String,
-    /// An optional message type that can be used by the server-side service.
-    pub kind: Option<String>,
-    /// The data to sent to the specified service.
-    pub data: Vec<u8>,
-}
+use crate::Message;
 
 /// Executes the handshake procedure.
 ///
