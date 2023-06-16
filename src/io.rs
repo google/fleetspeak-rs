@@ -7,20 +7,7 @@ use std::io::{Read, Write};
 
 use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
 
-/// A Fleetspeak client communication message.
-///
-/// This structure represents incoming or outgoing message objects delivered by
-/// Fleetspeak. This is a simplified version of the underlying Protocol Buffers
-/// message that exposes too much irrelevant fields and makes the protocol easy
-/// to misuse.
-pub struct Message {
-    /// A name of the server-side service that sent or should receive the data.
-    pub service: String,
-    /// An optional message type that can be used by the server-side service.
-    pub kind: Option<String>,
-    /// The data to sent to the specified service.
-    pub data: Vec<u8>,
-}
+use crate::Message;
 
 /// Executes the handshake procedure.
 ///
@@ -42,7 +29,7 @@ where
     Ok(())
 }
 
-/// Sends a heartbeat information through this connection.
+/// Writes a Fleetspeak heartbeat record to the output buffer.
 ///
 /// All client services should heartbeat from time to time. Otherwise, from
 /// the Fleetspeak perspective, the service is unresponsive and should be
@@ -50,18 +37,18 @@ where
 ///
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
-pub fn heartbeat<W>(output: &mut W) -> std::io::Result<()>
+pub fn write_heartbeat<W>(output: &mut W) -> std::io::Result<()>
 where
     W: Write,
 {
-    let mut msg = fleetspeak_proto::common::Message::new();
-    msg.set_message_type(String::from("Heartbeat"));
-    msg.mut_destination().set_service_name(String::from("system"));
+    let mut proto = fleetspeak_proto::common::Message::new();
+    proto.set_message_type(String::from("Heartbeat"));
+    proto.mut_destination().set_service_name(String::from("system"));
 
-    write_raw(output, msg)
+    write_proto(output, proto)
 }
 
-/// Sends the startup information through this connection.
+/// Writes a Fleetspeak startup record to the output buffer.
 ///
 /// All clients are required to send this information on startup. If the
 /// client does not receive this information quickly enough, the service
@@ -69,7 +56,7 @@ where
 ///
 /// The `version` string should contain a self-reported version of the
 /// service. This data is used primarily for statistics.
-pub fn startup<W>(output: &mut W, version: &str) -> std::io::Result<()>
+pub fn write_startup<W>(output: &mut W, version: &str) -> std::io::Result<()>
 where
     W: Write,
 {
@@ -79,21 +66,21 @@ where
     data.set_pid(i64::from(std::process::id()));
     data.set_version(String::from(version));
 
-    let mut msg = fleetspeak_proto::common::Message::new();
-    msg.set_message_type(String::from("StartupData"));
-    msg.mut_destination().set_service_name(String::from("system"));
-    msg.mut_data().set_type_url(type_url(&data));
-    msg.mut_data().set_value(data.write_to_bytes()?);
+    let mut proto = fleetspeak_proto::common::Message::new();
+    proto.set_message_type(String::from("StartupData"));
+    proto.mut_destination().set_service_name(String::from("system"));
+    proto.mut_data().set_type_url(type_url(&data));
+    proto.mut_data().set_value(data.write_to_bytes()?);
 
-    write_raw(output, msg)
+    write_proto(output, proto)
 }
 
-/// Sends the message to the Fleetspeak server through the output buffer.
+/// Writes a Fleetspeak message to the output buffer.
 ///
 /// The message is sent to the server-side `service` and tagged with the
 /// `kind` type. Note that this message type is rather irrelevant for
 /// Fleetspeak and it is up to the service what to do with this information.
-pub fn send<W>(output: &mut W, message: Message) -> std::io::Result<()>
+pub fn write_message<W>(output: &mut W, message: Message) -> std::io::Result<()>
 where
     W: Write,
 {
@@ -103,19 +90,19 @@ where
     // TODO: Consider a way of providing the type URL of the data being sent.
     proto.mut_data().set_value(message.data);
 
-    write_raw(output, proto)
+    write_proto(output, proto)
 }
 
-/// Receives the message from the Fleetspeak server through the input buffer.
+/// Reads a Fleetspeak message from the input buffer.
 ///
 /// This function will block until there is a message to be read in the
 /// input. Errors are reported in case of any I/O failure or if the read
 /// message was malformed (e.g. it cannot be parsed to the expected type).
-pub fn receive<R>(input: &mut R) -> std::io::Result<Message>
+pub fn read_message<R>(input: &mut R) -> std::io::Result<Message>
 where
     R: Read,
 {
-    let mut msg = read_raw(input)?;
+    let mut proto = read_proto(input)?;
 
     // While missing source address might not be considered a critical error
     // in most cases, for our own sanity we fail for such messages as well.
@@ -126,8 +113,8 @@ where
     // We could also return a "catchable" error and only drop the message rather
     // than failing hard but not to introduce awkward error hierarchy and adding
     // a lot of complexity to the code without much benefit.
-    let service = if msg.has_source() {
-        msg.take_source().take_service_name()
+    let service = if proto.has_source() {
+        proto.take_source().take_service_name()
     } else {
         use std::io::ErrorKind::InvalidData;
         return Err(std::io::Error::new(InvalidData, "missing source address"));
@@ -137,8 +124,8 @@ where
     // should we error-out or return a default value? For the time being we
     // stick to the default approach, but if this proves to be not working
     // well in practice, it might be reconsidered.
-    let mut data = if msg.has_data() {
-        msg.take_data()
+    let mut data = if proto.has_data() {
+        proto.take_data()
     } else {
         log::warn!(target: "fleetspeak", "empty message from '{}'", service);
         Default::default()
@@ -146,12 +133,12 @@ where
 
     Ok(Message {
         service: service,
-        kind: Some(msg.message_type),
+        kind: Some(proto.message_type),
         data: data.take_value(),
     })
 }
 
-/// Writes a raw Fleetspeak message to the output buffer.
+/// Writes a raw Fleetspeak Protocol Buffers message to the output buffer.
 ///
 /// This method does not perform any validation of the message being emitted
 /// and assumes that all the required fields are present.
@@ -159,26 +146,26 @@ where
 /// Note that this call will fail only if the message cannot be written to
 /// the output or cannot be properly encoded but will succeed even if the
 /// message is not what the server expects.
-fn write_raw<W>(output: &mut W, msg: fleetspeak_proto::common::Message) -> std::io::Result<()>
+fn write_proto<W>(output: &mut W, proto: fleetspeak_proto::common::Message) -> std::io::Result<()>
 where
     W: Write,
 {
     use protobuf::Message as _;
 
-    output.write_u32::<LittleEndian>(msg.compute_size())?;
-    msg.write_to_writer(output)?;
+    output.write_u32::<LittleEndian>(proto.compute_size())?;
+    proto.write_to_writer(output)?;
     write_magic(output)?;
     output.flush()?;
 
     Ok(())
 }
 
-/// Reads a raw Fleetspeeak message from the input buffer.
+/// Reads a raw Fleetspeeak Protocol Buffers message from the input buffer.
 ///
 /// This function will block until there is a message to be read from the
 /// input. It will fail in case of any I/O error or if the message cannot
 /// be parsed as a Fleetspeak message.
-fn read_raw<R>(input: &mut R) -> std::io::Result<fleetspeak_proto::common::Message>
+fn read_proto<R>(input: &mut R) -> std::io::Result<fleetspeak_proto::common::Message>
 where
     R: Read,
 {

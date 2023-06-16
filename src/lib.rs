@@ -17,16 +17,27 @@
 //!
 //! [Fleetspeak]: https://github.com/google/fleetspeak
 
-mod connection;
+mod io;
 
-use std::fs::File;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 use lazy_static::lazy_static;
-use log::info;
 
-pub use self::connection::Message;
+/// A Fleetspeak client communication message.
+///
+/// This structure represents incoming or outgoing message objects delivered by
+/// Fleetspeak. This is a simplified version of the underlying Protocol Buffers
+/// message that exposes too much irrelevant fields and makes the protocol easy
+/// to misuse.
+pub struct Message {
+    /// A name of the server-side service that sent or should receive the data.
+    pub service: String,
+    /// An optional message type that can be used by the server-side service.
+    pub kind: Option<String>,
+    /// The data to sent to the specified service.
+    pub data: Vec<u8>,
+}
 
 /// Sends a heartbeat signal to the Fleetspeak client.
 ///
@@ -36,7 +47,7 @@ pub use self::connection::Message;
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
 pub fn heartbeat() {
-    execute(&CONNECTION.output, |buf| self::connection::heartbeat(buf))
+    execute(&CONNECTION.output, |buf| self::io::write_heartbeat(buf))
 }
 
 /// Sends a heartbeat signal to the Fleetspeak client but no more frequently
@@ -79,7 +90,7 @@ pub fn heartbeat_with_throttle(rate: Duration) {
 /// The `version` string should contain a self-reported version of the service.
 /// This data is used primarily for statistics.
 pub fn startup(version: &str) {
-    execute(&CONNECTION.output, |buf| self::connection::startup(buf, version))
+    execute(&CONNECTION.output, |buf| self::io::write_startup(buf, version))
 }
 
 /// Sends the message to the Fleetspeak server.
@@ -104,7 +115,7 @@ pub fn startup(version: &str) {
 /// });
 /// ```
 pub fn send(message: Message) {
-    execute(&CONNECTION.output, |buf| self::connection::send(buf, message))
+    execute(&CONNECTION.output, |buf| self::io::write_message(buf, message))
 }
 
 /// Receives a message from the Fleetspeak server.
@@ -130,7 +141,7 @@ pub fn send(message: Message) {
 /// println!("Hello, {name}!");
 /// ```
 pub fn receive() -> Message {
-    execute(&CONNECTION.input, |buf| self::connection::receive(buf))
+    execute(&CONNECTION.input, |buf| self::io::read_message(buf))
 }
 
 /// Receive a message from the Fleetspeak server, heartbeating in background.
@@ -200,19 +211,19 @@ pub fn receive_with_heartbeat(rate: Duration) -> Message {
 /// sending heartbeat signals) when another thread might be busy with reading
 /// messages.
 struct Connection {
-    input: Mutex<File>,
-    output: Mutex<File>,
+    input: Mutex<std::fs::File>,
+    output: Mutex<std::fs::File>,
 }
 
 lazy_static! {
     static ref CONNECTION: Connection = {
-        let mut input = open("FLEETSPEAK_COMMS_CHANNEL_INFD");
-        let mut output = open("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
+        let mut input = file_from_env_var("FLEETSPEAK_COMMS_CHANNEL_INFD");
+        let mut output = file_from_env_var("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
 
-        use self::connection::handshake;
-        handshake(&mut input, &mut output).expect("handshake failure");
+        crate::io::handshake(&mut input, &mut output)
+            .expect("handshake failure");
 
-        info!(target: "fleetspeak", "handshake successful");
+        log::info!(target: "fleetspeak", "handshake successful");
 
         Connection {
             input: Mutex::new(input),
@@ -230,9 +241,9 @@ lazy_static! {
 ///
 /// Any I/O error returned by the executed function indicates a fatal connection
 /// failure and ends with a panic.
-fn execute<F, T>(mutex: &Mutex<File>, f: F) -> T
+fn execute<F, T>(mutex: &Mutex<std::fs::File>, f: F) -> T
 where
-    F: FnOnce(&mut File) -> std::io::Result<T>,
+    F: FnOnce(&mut std::fs::File) -> std::io::Result<T>,
 {
     let mut file = mutex.lock().expect("poisoned connection mutex");
     match f(&mut file) {
@@ -241,12 +252,14 @@ where
     }
 }
 
-/// Opens a file object pointed by an environment variable.
+/// Creates a [`File`] object specified in the given environment variable.
 ///
 /// Note that this function will panic if the environment variable `var` is not
 /// a valid file descriptor (in which case the library cannot be initialized and
 /// the service is unlikely to work anyway).
-fn open(var: &str) -> File {
+///
+/// [`File`]: std::fs::File
+fn file_from_env_var(var: &str) -> std::fs::File {
     let fd = std::env::var(var)
         .expect(&format!("invalid variable `{}`", var))
         .parse()
