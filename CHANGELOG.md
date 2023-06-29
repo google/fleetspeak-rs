@@ -1,3 +1,9 @@
+Upcoming release
+================
+
+  * Changed the external interface of most top-level functions to panic on error
+    as there is no reliable way to handle the errors anyway.
+
 0.3.1 (2022-08-26)
 ==================
 
