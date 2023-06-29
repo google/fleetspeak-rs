@@ -20,7 +20,7 @@ exclude = [
 ]
 
 [dependencies]
-protobuf = { version = "2.27.1" }
+protobuf = { workspace = true }
 
 [build-dependencies]
-protobuf-codegen-pure = { version = "2.27.1" }
+protobuf-codegen-pure = { workspace = true }
