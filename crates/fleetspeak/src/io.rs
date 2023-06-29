@@ -5,7 +5,7 @@
 
 use std::io::{Read, Write};
 
-use byteorder::{LittleEndian, ReadBytesExt, WriteBytesExt};
+use byteorder::{LittleEndian, ReadBytesExt as _, WriteBytesExt as _};
 
 use crate::Message;
 
