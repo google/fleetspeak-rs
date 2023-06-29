@@ -15,7 +15,7 @@ documentation = "https://docs.rs/fleetspeak"
 
 [dependencies]
 byteorder = { version = "1.4.3" }
-fleetspeak-proto = { path = "../fleetspeak-proto" }
+fleetspeak-proto = { path = "../fleetspeak-proto", version = "0.3.1" }
 lazy_static = { version = "1.4.0" }
 log = { version = "0.4.19" }
 protobuf = { workspace = true }
