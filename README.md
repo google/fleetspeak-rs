@@ -42,7 +42,7 @@ To write your service, first add this library to dependencies in your project's
 
 ```toml
 [dependencies]
-fleetspeak = "0.3.0"
+fleetspeak = "0.4.0"
 ```
 
 Now, in your project, you can use functions such as `fleetspeak::send` and
