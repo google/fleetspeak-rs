@@ -1,13 +1,17 @@
 [package]
 name = "fleetspeak-proto"
-version = "0.3.1"
+
+version.workspace = true
+edition.workspace = true
+
+authors.workspace = true
+license.workspace = true
+
+homepage.workspace = true
+repository.workspace = true
+
 description = "A Fleetspeak connector crate with Protocol Buffers messages."
-license = "MIT"
-authors = ["Łukasz Hanuszczak <hanuszczak@google.com>"]
-homepage = "https://github.com/google/fleetspeak-rs"
 documentation = "https://docs.rs/fleetspeak-proto"
-repository = "https://github.com/google/fleetspeak-rs"
-edition = "2018"
 
 exclude = [
   "/vendor/**",
@@ -16,7 +20,7 @@ exclude = [
 ]
 
 [dependencies]
-protobuf = { version = "2.27.1" }
+protobuf = { workspace = true }
 
 [build-dependencies]
-protobuf-codegen-pure = { version = "2.27.1" }
+protobuf-codegen-pure = { workspace = true }
