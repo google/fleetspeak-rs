@@ -243,7 +243,7 @@ lazy_static! {
 ///
 /// Any I/O error returned by the executed function indicates a fatal connection
 /// failure and ends with a panic.
-fn execute<F, T>(mutex: &Mutex<&'static mut std::fs::File>, f: F) -> T
+fn execute<F, T>(mutex: &Mutex<&mut std::fs::File>, f: F) -> T
 where
     F: FnOnce(&mut std::fs::File) -> std::io::Result<T>,
 {
