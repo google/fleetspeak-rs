@@ -267,8 +267,24 @@ fn file_from_env_var(var: &str) -> std::fs::File {
         .parse()
         .expect(&format!("failed to parse file descriptor"));
 
+    // SAFETY: `std::fs::File::from_raw_fd` requires the file descriptor to be
+    // valid and open. We verify this through `fcntl` and panic if the check
+    // fails.
+    //
+    // Note that the whole issue is more subtle than this. While we uphold the
+    // safety requirements of `from_raw_fd`, we cannot guarantee that we are
+    // exclusive owner of the descriptor or that the descriptor remains open
+    // throughout the entirety of the process lifetime which might lead to other
+    // kinds of undefined behaviour. See the discussion in [1].
+    //
+    // [1]: https://github.com/rust-lang/unsafe-code-guidelines/issues/434
     #[cfg(target_family = "unix")]
     unsafe {
+        if libc::fcntl(fd, libc::F_GETFD) == -1 {
+            let error = std::io::Error::last_os_error();
+            panic!("invalid file descriptor '{fd}': {error}");
+        }
+
         std::os::unix::io::FromRawFd::from_raw_fd(fd)
     }
 
