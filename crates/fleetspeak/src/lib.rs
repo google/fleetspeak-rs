@@ -288,11 +288,44 @@ fn file_from_env_var(var: &str) -> std::fs::File {
         std::os::unix::io::FromRawFd::from_raw_fd(fd)
     }
 
+    // SAFETY: `std::fs::File::from_raw_handle` requires the file handle to be
+    // valid, open and closable via `CloseHandle`. We verify this through a call
+    // to `GetFileType`: if the call fails or returns an unexpected file type,
+    // we panic. We expect the type to be a named pipe: this is what Fleetspeak
+    // should pass as and it is closable via `CloseHandle` [1] as required.
+    //
+    // See also remarks in the comment for the Unix branch of this method.
+    //
+    // [1]: https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle#remarks
     #[cfg(target_family = "windows")]
     unsafe {
-        // We use `identity` to specify the type for the `parse` call above and
-        // then cast it to an appropriate Windows-specific pointer type.
-        let handle = std::convert::identity::<usize>(fd) as _;
+        use windows_sys::Win32::{
+            Foundation::*,
+            Storage::FileSystem::*,
+        };
+
+        // We use `identity` to specify the type for the `parse` call above.
+        let handle = std::convert::identity::<HANDLE>(fd);
+
+        // We fail both in case there is something wrong with the handle (in
+        // which case the call to `GetFileType` should return unknown file type
+        // and set the last error value) or the file type is not as expected.
+        let file_type = GetFileType(handle);
+        if file_type != FILE_TYPE_PIPE {
+            let code = GetLastError();
+            if code != NO_ERROR {
+                let error = std::io::Error::from_raw_os_error(code as i32);
+                panic!("invalid file descriptor '{handle}': {error}");
+            } else {
+                panic!("unexpected file descriptor type: {}", file_type);
+            }
+        }
+
+        // `HANDLE` type from `windows-sys` and from the standard library are
+        // different (one is a pointer and one is `isize`), so we have to cast
+        // between them.
+        let handle = handle as std::os::windows::raw::HANDLE;
+
         std::os::windows::io::FromRawHandle::from_raw_handle(handle)
     }
 }
