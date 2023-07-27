@@ -213,8 +213,8 @@ pub fn receive_with_heartbeat(rate: Duration) -> Message {
 /// sending heartbeat signals) when another thread might be busy with reading
 /// messages.
 struct Connection {
-    input: Mutex<std::fs::File>,
-    output: Mutex<std::fs::File>,
+    input: Mutex<&'static mut std::fs::File>,
+    output: Mutex<&'static mut std::fs::File>,
 }
 
 lazy_static! {
@@ -243,7 +243,7 @@ lazy_static! {
 ///
 /// Any I/O error returned by the executed function indicates a fatal connection
 /// failure and ends with a panic.
-fn execute<F, T>(mutex: &Mutex<std::fs::File>, f: F) -> T
+fn execute<F, T>(mutex: &Mutex<&'static mut std::fs::File>, f: F) -> T
 where
     F: FnOnce(&mut std::fs::File) -> std::io::Result<T>,
 {
@@ -260,8 +260,11 @@ where
 /// a valid file descriptor (in which case the library cannot be initialized and
 /// the service is unlikely to work anyway).
 ///
+/// This function returns a static mutable reference to ensure that the file is
+/// never dropped.
+///
 /// [`File`]: std::fs::File
-fn file_from_env_var(var: &str) -> std::fs::File {
+fn file_from_env_var(var: &str) -> &'static mut std::fs::File {
     let fd = std::env::var(var)
         .expect(&format!("invalid variable `{}`", var))
         .parse()
@@ -275,18 +278,20 @@ fn file_from_env_var(var: &str) -> std::fs::File {
     // safety requirements of `from_raw_fd`, we cannot guarantee that we are
     // exclusive owner of the descriptor or that the descriptor remains open
     // throughout the entirety of the process lifetime which might lead to other
-    // kinds of undefined behaviour. See the discussion in [1].
+    // kinds of undefined behaviour. As an additional safety measure we return
+    // a static mutable reference to ensure that the file destructor is never
+    // called. See the discussion in [1].
     //
     // [1]: https://github.com/rust-lang/unsafe-code-guidelines/issues/434
     #[cfg(target_family = "unix")]
-    unsafe {
+    let file = unsafe {
         if libc::fcntl(fd, libc::F_GETFD) == -1 {
             let error = std::io::Error::last_os_error();
             panic!("invalid file descriptor '{fd}': {error}");
         }
 
         std::os::unix::io::FromRawFd::from_raw_fd(fd)
-    }
+    };
 
     // SAFETY: `std::fs::File::from_raw_handle` requires the file handle to be
     // valid, open and closable via `CloseHandle`. We verify this through a call
@@ -298,7 +303,7 @@ fn file_from_env_var(var: &str) -> std::fs::File {
     //
     // [1]: https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle#remarks
     #[cfg(target_family = "windows")]
-    unsafe {
+    let file = unsafe {
         use windows_sys::Win32::{
             Foundation::*,
             Storage::FileSystem::*,
@@ -327,5 +332,7 @@ fn file_from_env_var(var: &str) -> std::fs::File {
         let handle = handle as std::os::windows::raw::HANDLE;
 
         std::os::windows::io::FromRawHandle::from_raw_handle(handle)
-    }
+    };
+
+    Box::leak(Box::new(file))
 }
