@@ -332,7 +332,7 @@ fn file_from_env_var(var: &str) -> &'static mut std::fs::File {
                 let error = std::io::Error::from_raw_os_error(code as i32);
                 panic!("invalid file descriptor '{handle}': {error}");
             } else {
-                panic!("unexpected file descriptor type: {}", file_type);
+                panic!("wrong type of file descriptor '{handle}': {file_type}");
             }
         }
 
