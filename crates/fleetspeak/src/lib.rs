@@ -270,9 +270,17 @@ fn file_from_env_var(var: &str) -> &'static mut std::fs::File {
         .parse()
         .expect(&format!("failed to parse file descriptor"));
 
+    // We run inside a critical section to guarantee that between verifying the
+    // descriptor and using `std::File::from_raw_*` functions (see the comments
+    // below) nothing closes it inbetween.
+    let mutex = Mutex::new(());
+    let guard = mutex.lock()
+        .unwrap();
+
     // SAFETY: `std::fs::File::from_raw_fd` requires the file descriptor to be
     // valid and open. We verify this through `fcntl` and panic if the check
-    // fails.
+    // fails. Because we run within a critical section we are sure that the file
+    // was not closed at the moment we wrap the raw descriptor.
     //
     // Note that the whole issue is more subtle than this. While we uphold the
     // safety requirements of `from_raw_fd`, we cannot guarantee that we are
@@ -297,7 +305,9 @@ fn file_from_env_var(var: &str) -> &'static mut std::fs::File {
     // valid, open and closable via `CloseHandle`. We verify this through a call
     // to `GetFileType`: if the call fails or returns an unexpected file type,
     // we panic. We expect the type to be a named pipe: this is what Fleetspeak
-    // should pass as and it is closable via `CloseHandle` [1] as required.
+    // should pass as and it is closable via `CloseHandle` [1] as required. We
+    // run within a critical section we are sure that the file was not closed at
+    // the moment we wrap the raw handle.
     //
     // See also remarks in the comment for the Unix branch of this method.
     //
@@ -333,6 +343,8 @@ fn file_from_env_var(var: &str) -> &'static mut std::fs::File {
 
         std::os::windows::io::FromRawHandle::from_raw_handle(handle)
     };
+
+    drop(guard);
 
     Box::leak(Box::new(file))
 }
