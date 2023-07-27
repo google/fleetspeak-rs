@@ -219,10 +219,10 @@ struct Connection {
 
 lazy_static! {
     static ref CONNECTION: Connection = {
-        let mut input = file_from_env_var("FLEETSPEAK_COMMS_CHANNEL_INFD");
-        let mut output = file_from_env_var("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
+        let input = file_from_env_var("FLEETSPEAK_COMMS_CHANNEL_INFD");
+        let output = file_from_env_var("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
 
-        crate::io::handshake(&mut input, &mut output)
+        crate::io::handshake(input, output)
             .expect("handshake failure");
 
         log::info!(target: "fleetspeak", "handshake successful");
