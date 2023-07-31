@@ -1,3 +1,8 @@
+Upcoming release
+================
+
+  * Hardened against potential safety violation (#4).
+
 0.4.0 (2023-06-29)
 ==================
 
