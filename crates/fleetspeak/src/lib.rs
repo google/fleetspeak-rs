@@ -225,7 +225,7 @@ lazy_static! {
         crate::io::handshake(input, output)
             .expect("handshake failure");
 
-        log::info!(target: "fleetspeak", "handshake successful");
+        log::info!("handshake successful");
 
         Connection {
             input: Mutex::new(input),

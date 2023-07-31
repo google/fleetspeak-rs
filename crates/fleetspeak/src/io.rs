@@ -127,7 +127,7 @@ where
     let mut data = if proto.has_data() {
         proto.take_data()
     } else {
-        log::warn!(target: "fleetspeak", "empty message from '{}'", service);
+        log::warn!("empty message from '{}'", service);
         Default::default()
     };
 
