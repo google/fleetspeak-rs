@@ -9,6 +9,68 @@ use byteorder::{LittleEndian, ReadBytesExt as _, WriteBytesExt as _};
 
 use crate::Message;
 
+#[cfg(target_family = "unix")]
+mod unix;
+
+#[cfg(target_family = "windows")]
+mod windows;
+
+mod sys {
+    #[cfg(target_family = "unix")]
+    pub use crate::io::unix::*;
+
+    #[cfg(target_family = "windows")]
+    pub use crate::io::windows::*;
+}
+
+/// Alternative for [`std::io::Stdin`] for communicating with Fleetspeak.
+struct CommsIn {
+    inner: self::sys::CommsIn,
+}
+
+/// Alternative for [`std::io::Stdout`] for communicating with Fleetspeak.
+struct CommsOut {
+    inner: self::sys::CommsOut,
+}
+
+impl CommsIn {
+
+    /// Returns a [`CommsIn`] instance given by the parent Fleetspeak process.
+    pub fn from_env_var() -> std::io::Result<CommsIn> {
+        Ok(CommsIn {
+            inner: self::sys::CommsIn::from_env_var()?,
+        })
+    }
+}
+
+impl CommsOut {
+
+    /// Returns a [`CommsOut`] instance given by the parent Fleetspeak process.
+    pub fn from_env_var() -> std::io::Result<CommsOut> {
+        Ok(CommsOut {
+            inner: self::sys::CommsOut::from_env_var()?,
+        })
+    }
+}
+
+impl Read for CommsIn {
+
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.inner.read(buf)
+    }
+}
+
+impl Write for CommsOut {
+
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.inner.write(buf)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.inner.flush()
+    }
+}
+
 /// Executes the handshake procedure.
 ///
 /// The handshake procedure consists of writing and reading magic numbers from
