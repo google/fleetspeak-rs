@@ -21,16 +21,8 @@ impl CommsIn {
 
     /// Returns a [`CommsIn`] instance given by the parent Fleetspeak process.
     pub fn from_env_var() -> std::io::Result<CommsIn> {
-        let fd = match std::env::var("FLEETSPEAK_COMMS_CHANNEL_INFD") {
-            Ok(fd) => match fd.parse::<libc::c_int>() {
-                Ok(fd) => fd,
-                Err(_) => todo!(),
-            }
-            Err(_) => todo!(),
-        };
-
         Ok(CommsIn {
-            fd,
+            fd: env_var_fd("FLEETSPEAK_COMMS_CHANNEL_INFD")?,
         })
     }
 }
@@ -39,16 +31,8 @@ impl CommsOut {
 
     /// Returns a [`CommsOut`] instance given by the parent Fleetspeak process.
     pub fn from_env_var() -> std::io::Result<CommsOut> {
-        let fd = match std::env::var("FLEETSPEAK_COMMS_CHANNEL_OUTFD") {
-            Ok(fd) => match fd.parse::<libc::c_int>() {
-                Ok(fd) => fd,
-                Err(_) => todo!(),
-            }
-            Err(_) => todo!(),
-        };
-
         Ok(CommsOut {
-            fd,
+            fd: env_var_fd("FLEETSPEAK_COMMS_CHANNEL_OUTFD")?,
         })
     }
 }
@@ -117,4 +101,20 @@ impl std::io::Write for CommsOut {
         // is nothing to flush.
         Ok(())
     }
+}
+
+/// Retrieves a file descriptor specified in the given environment variable.
+fn env_var_fd<K>(key: K) -> std::io::Result<libc::c_int>
+where
+    K: AsRef<std::ffi::OsStr>,
+{
+    let fd = match std::env::var(key) {
+        Ok(fd) => match fd.parse::<libc::c_int>() {
+            Ok(fd) => fd,
+            Err(_) => todo!(),
+        }
+        Err(_) => todo!(),
+    };
+
+    Ok(fd)
 }
