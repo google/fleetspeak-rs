@@ -213,16 +213,27 @@ pub fn receive_with_heartbeat(rate: Duration) -> Message {
 /// sending heartbeat signals) when another thread might be busy with reading
 /// messages.
 struct Connection {
-    input: Mutex<&'static mut std::fs::File>,
-    output: Mutex<&'static mut std::fs::File>,
+    input: Mutex<std::io::BufReader<crate::io::CommsIn>>,
+    output: Mutex<std::io::BufWriter<crate::io::CommsOut>>,
 }
 
 lazy_static! {
     static ref CONNECTION: Connection = {
-        let input = file_from_env_var("FLEETSPEAK_COMMS_CHANNEL_INFD");
-        let output = file_from_env_var("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
+        let mut input = match crate::io::CommsIn::from_env() {
+            Ok(input) => std::io::BufReader::new(input),
+            Err(error) => {
+                panic!("invalid input communication channel: {error}");
+            }
+        };
 
-        crate::io::handshake(input, output)
+        let mut output = match crate::io::CommsOut::from_env() {
+            Ok(output) => std::io::BufWriter::new(output),
+            Err(error) => {
+                panic!("invalid output commmunication channel: {error}");
+            }
+        };
+
+        crate::io::handshake(&mut input, &mut output)
             .expect("handshake failure");
 
         log::info!("handshake successful");
@@ -243,9 +254,9 @@ lazy_static! {
 ///
 /// Any I/O error returned by the executed function indicates a fatal connection
 /// failure and ends with a panic.
-fn execute<F, T>(mutex: &Mutex<&mut std::fs::File>, f: F) -> T
+fn execute<C, F, T>(mutex: &Mutex<C>, f: F) -> T
 where
-    F: FnOnce(&mut std::fs::File) -> std::io::Result<T>,
+    F: FnOnce(&mut C) -> std::io::Result<T>,
 {
     let mut file = mutex.lock().expect("poisoned connection mutex");
     match f(&mut file) {

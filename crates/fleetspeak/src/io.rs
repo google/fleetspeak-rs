@@ -24,12 +24,12 @@ mod sys {
 }
 
 /// Alternative for [`std::io::Stdin`] for communicating with Fleetspeak.
-struct CommsIn {
+pub struct CommsIn {
     inner: self::sys::CommsIn,
 }
 
 /// Alternative for [`std::io::Stdout`] for communicating with Fleetspeak.
-struct CommsOut {
+pub struct CommsOut {
     inner: self::sys::CommsOut,
 }
 
