@@ -23,57 +23,10 @@ mod sys {
     pub use crate::io::windows::*;
 }
 
-/// Alternative for [`std::io::Stdin`] for communicating with Fleetspeak.
-///
-/// Reading from this communication channel is not synchronized nor buffered.
-pub struct CommsInRaw {
-    inner: self::sys::CommsInRaw,
-}
-
-/// Alternative for [`std::io::Stdout`] for communicating with Fleetspeak.
-///
-/// Writing to this communication channel is not synchronized nor buffered.
-pub struct CommsOutRaw {
-    inner: self::sys::CommsOutRaw,
-}
-
-impl CommsInRaw {
-
-    /// Returns a [`CommsIn`] instance given by the parent Fleetspeak process.
-    pub fn from_env() -> Result<CommsInRaw, CommsEnvError> {
-        Ok(CommsInRaw {
-            inner: self::sys::CommsInRaw::from_env()?,
-        })
-    }
-}
-
-impl CommsOutRaw {
-
-    /// Returns a [`CommsOut`] instance given by the parent Fleetspeak process.
-    pub fn from_env() -> Result<CommsOutRaw, CommsEnvError> {
-        Ok(CommsOutRaw {
-            inner: self::sys::CommsOutRaw::from_env()?,
-        })
-    }
-}
-
-impl Read for CommsInRaw {
-
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        self.inner.read(buf)
-    }
-}
-
-impl Write for CommsOutRaw {
-
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.inner.write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        self.inner.flush()
-    }
-}
+pub use self::sys::{
+    CommsInRaw,
+    CommsOutRaw,
+};
 
 /// An error returned in case instantiating communicaton channels fails.
 #[derive(Clone, Debug)]
