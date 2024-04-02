@@ -18,7 +18,7 @@ pub struct CommsOut {
 impl CommsIn {
 
     /// Returns a [`CommsIn`] instance given by the parent Fleetspeak process.
-    pub fn from_env_var() -> Result<CommsIn, CommsEnvError> {
+    pub fn from_env() -> Result<CommsIn, CommsEnvError> {
         todo!()
     }
 }
@@ -26,7 +26,7 @@ impl CommsIn {
 impl CommsOut {
 
     /// Returns a [`CommsOut`] instance given by the parent Fleetspeak process.
-    pub fn from_env_var() -> Result<CommsOut, CommsEnvError> {
+    pub fn from_env() -> Result<CommsOut, CommsEnvError> {
         todo!()
     }
 }
