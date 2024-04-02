@@ -40,10 +40,8 @@ impl CommsOut {
 impl std::io::Read for CommsIn {
 
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let buf_len = match u32::try_from(buf.len()) {
-            Ok(buf_len) => buf_len,
-            Err(_) => return Err(std::io::ErrorKind::InvalidInput.into()),
-        };
+        let buf_len = u32::try_from(buf.len())
+            .map_err(|_| std::io::ErrorKind::InvalidInput)?;
 
         let mut count = std::mem::MaybeUninit::uninit();
 
@@ -94,10 +92,8 @@ impl std::io::Read for CommsIn {
 impl std::io::Write for CommsOut {
 
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let buf_len = match u32::try_from(buf.len()) {
-            Ok(buf_len) => buf_len,
-            Err(_) => return Err(std::io::ErrorKind::InvalidInput.into()),
-        };
+        let buf_len = u32::try_from(buf.len())
+            .map_err(|_| std::io::ErrorKind::InvalidInput)?;
 
         let mut count = std::mem::MaybeUninit::uninit();
 
