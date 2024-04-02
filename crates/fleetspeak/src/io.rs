@@ -36,7 +36,7 @@ struct CommsOut {
 impl CommsIn {
 
     /// Returns a [`CommsIn`] instance given by the parent Fleetspeak process.
-    pub fn from_env_var() -> std::io::Result<CommsIn> {
+    pub fn from_env_var() -> Result<CommsIn, CommsEnvError> {
         Ok(CommsIn {
             inner: self::sys::CommsIn::from_env_var()?,
         })
@@ -46,7 +46,7 @@ impl CommsIn {
 impl CommsOut {
 
     /// Returns a [`CommsOut`] instance given by the parent Fleetspeak process.
-    pub fn from_env_var() -> std::io::Result<CommsOut> {
+    pub fn from_env_var() -> Result<CommsOut, CommsEnvError> {
         Ok(CommsOut {
             inner: self::sys::CommsOut::from_env_var()?,
         })
@@ -69,6 +69,37 @@ impl Write for CommsOut {
     fn flush(&mut self) -> std::io::Result<()> {
         self.inner.flush()
     }
+}
+
+/// An error returned in case instantiating communicaton channels fails.
+#[derive(Clone, Debug)]
+pub struct CommsEnvError {
+    repr: CommsEnvErrorRepr,
+}
+
+#[derive(Clone, Debug)]
+enum CommsEnvErrorRepr {
+    /// Communication channel is not specified in the environment.
+    NotSpecified,
+    /// Communication channel specified in the environment is not valid.
+    NotParsable(std::ffi::OsString),
+}
+
+impl std::fmt::Display for CommsEnvError {
+
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.repr {
+            CommsEnvErrorRepr::NotSpecified => {
+                write!(fmt, "communication channel not specified")
+            }
+            CommsEnvErrorRepr::NotParsable(value) => {
+                write!(fmt, "invalid communication channel value: {value:?}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for CommsEnvError {
 }
 
 /// Executes the handshake procedure.

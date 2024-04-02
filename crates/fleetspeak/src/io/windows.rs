@@ -3,6 +3,8 @@
 // Use of this source code is governed by an MIT-style license that can be found
 // in the LICENSE file or at https://opensource.org/licenses/MIT.
 
+use super::CommsEnvError;
+
 /// Alternative for [`std::io::Stdin`] for communicating with Fleetspeak.
 pub struct CommsIn {
     // TODO(@panhania): Use raw pipes.
@@ -16,7 +18,7 @@ pub struct CommsOut {
 impl CommsIn {
 
     /// Returns a [`CommsIn`] instance given by the parent Fleetspeak process.
-    pub fn from_env_var() -> std::io::Result<CommsIn> {
+    pub fn from_env_var() -> Result<CommsIn, CommsEnvError> {
         todo!()
     }
 }
@@ -24,7 +26,7 @@ impl CommsIn {
 impl CommsOut {
 
     /// Returns a [`CommsOut`] instance given by the parent Fleetspeak process.
-    pub fn from_env_var() -> std::io::Result<CommsOut> {
+    pub fn from_env_var() -> Result<CommsOut, CommsEnvError> {
         todo!()
     }
 }

@@ -3,6 +3,8 @@
 // Use of this source code is governed by an MIT-style license that can be found
 // in the LICENSE file or at https://opensource.org/licenses/MIT.
 
+use super::{CommsEnvError, CommsEnvErrorRepr};
+
 /// Alternative for [`std::io::Stdin`] for communicating with Fleetspeak.
 pub struct CommsIn {
     /// File descriptor of the input channel passeed by the Fleetspeak process.
@@ -20,7 +22,7 @@ pub struct CommsOut {
 impl CommsIn {
 
     /// Returns a [`CommsIn`] instance given by the parent Fleetspeak process.
-    pub fn from_env_var() -> std::io::Result<CommsIn> {
+    pub fn from_env_var() -> Result<CommsIn, CommsEnvError> {
         Ok(CommsIn {
             fd: env_var_fd("FLEETSPEAK_COMMS_CHANNEL_INFD")?,
         })
@@ -30,7 +32,7 @@ impl CommsIn {
 impl CommsOut {
 
     /// Returns a [`CommsOut`] instance given by the parent Fleetspeak process.
-    pub fn from_env_var() -> std::io::Result<CommsOut> {
+    pub fn from_env_var() -> Result<CommsOut, CommsEnvError> {
         Ok(CommsOut {
             fd: env_var_fd("FLEETSPEAK_COMMS_CHANNEL_OUTFD")?,
         })
@@ -104,17 +106,22 @@ impl std::io::Write for CommsOut {
 }
 
 /// Retrieves a file descriptor specified in the given environment variable.
-fn env_var_fd<K>(key: K) -> std::io::Result<libc::c_int>
+fn env_var_fd<K>(key: K) -> Result<libc::c_int, CommsEnvError>
 where
     K: AsRef<std::ffi::OsStr>,
 {
-    let fd = match std::env::var(key) {
+    match std::env::var(key) {
         Ok(fd) => match fd.parse::<libc::c_int>() {
-            Ok(fd) => fd,
-            Err(_) => todo!(),
+            Ok(fd) => Ok(fd),
+            Err(_) => Err(CommsEnvError {
+                repr: CommsEnvErrorRepr::NotParsable(fd.into()),
+            }),
         }
-        Err(_) => todo!(),
-    };
-
-    Ok(fd)
+        Err(std::env::VarError::NotPresent) => Err(CommsEnvError {
+            repr: CommsEnvErrorRepr::NotSpecified,
+        }),
+        Err(std::env::VarError::NotUnicode(value)) => Err(CommsEnvError {
+            repr: CommsEnvErrorRepr::NotParsable(value),
+        }),
+    }
 }
