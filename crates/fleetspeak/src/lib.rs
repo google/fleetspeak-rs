@@ -213,20 +213,20 @@ pub fn receive_with_heartbeat(rate: Duration) -> Message {
 /// sending heartbeat signals) when another thread might be busy with reading
 /// messages.
 struct Connection {
-    input: Mutex<std::io::BufReader<crate::io::CommsIn>>,
-    output: Mutex<std::io::BufWriter<crate::io::CommsOut>>,
+    input: Mutex<std::io::BufReader<crate::io::CommsInRaw>>,
+    output: Mutex<std::io::BufWriter<crate::io::CommsOutRaw>>,
 }
 
 lazy_static! {
     static ref CONNECTION: Connection = {
-        let mut input = match crate::io::CommsIn::from_env() {
+        let mut input = match crate::io::CommsInRaw::from_env() {
             Ok(input) => std::io::BufReader::new(input),
             Err(error) => {
                 panic!("invalid input communication channel: {error}");
             }
         };
 
-        let mut output = match crate::io::CommsOut::from_env() {
+        let mut output = match crate::io::CommsOutRaw::from_env() {
             Ok(output) => std::io::BufWriter::new(output),
             Err(error) => {
                 panic!("invalid output commmunication channel: {error}");

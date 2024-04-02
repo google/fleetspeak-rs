@@ -6,38 +6,42 @@
 use super::{CommsEnvError, CommsEnvErrorRepr};
 
 /// Alternative for [`std::io::Stdin`] for communicating with Fleetspeak.
-pub struct CommsIn {
+///
+/// Reading from this communication channel is not synchronized nor buffered.
+pub struct CommsInRaw {
     /// File handle of the input channel passed by the Fleetspeak process.
     handle: windows_sys::Win32::Foundation::HANDLE,
 }
 
 /// Alternative for [`std::io::Stdout`] for communicating with Fleetspeak.
-pub struct CommsOut {
+///
+/// Writing to this communication channel is not synchronized nor buffered.
+pub struct CommsOutRaw {
     /// File handle of the output channel passed by the Fleetspeak process.
     handle: windows_sys::Win32::Foundation::HANDLE,
 }
 
-impl CommsIn {
+impl CommsInRaw {
 
     /// Returns a [`CommsIn`] instance given by the parent Fleetspeak process.
-    pub fn from_env() -> Result<CommsIn, CommsEnvError> {
-        Ok(CommsIn {
+    pub fn from_env() -> Result<CommsInRaw, CommsEnvError> {
+        Ok(CommsInRaw {
             handle: env_var_handle("FLEETSPEAK_COMMS_CHANNEL_INFD")?,
         })
     }
 }
 
-impl CommsOut {
+impl CommsOutRaw {
 
     /// Returns a [`CommsOut`] instance given by the parent Fleetspeak process.
-    pub fn from_env() -> Result<CommsOut, CommsEnvError> {
-        Ok(CommsOut {
+    pub fn from_env() -> Result<CommsOutRaw, CommsEnvError> {
+        Ok(CommsOutRaw {
             handle: env_var_handle("FLEETSPEAK_COMMS_CHANNEL_OUTFD")?,
         })
     }
 }
 
-impl std::io::Read for CommsIn {
+impl std::io::Read for CommsInRaw {
 
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let buf_len = u32::try_from(buf.len())
@@ -89,7 +93,7 @@ impl std::io::Read for CommsIn {
     }
 }
 
-impl std::io::Write for CommsOut {
+impl std::io::Write for CommsOutRaw {
 
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let buf_len = u32::try_from(buf.len())

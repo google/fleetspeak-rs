@@ -24,43 +24,47 @@ mod sys {
 }
 
 /// Alternative for [`std::io::Stdin`] for communicating with Fleetspeak.
-pub struct CommsIn {
-    inner: self::sys::CommsIn,
+///
+/// Reading from this communication channel is not synchronized nor buffered.
+pub struct CommsInRaw {
+    inner: self::sys::CommsInRaw,
 }
 
 /// Alternative for [`std::io::Stdout`] for communicating with Fleetspeak.
-pub struct CommsOut {
-    inner: self::sys::CommsOut,
+///
+/// Writing to this communication channel is not synchronized nor buffered.
+pub struct CommsOutRaw {
+    inner: self::sys::CommsOutRaw,
 }
 
-impl CommsIn {
+impl CommsInRaw {
 
     /// Returns a [`CommsIn`] instance given by the parent Fleetspeak process.
-    pub fn from_env() -> Result<CommsIn, CommsEnvError> {
-        Ok(CommsIn {
-            inner: self::sys::CommsIn::from_env()?,
+    pub fn from_env() -> Result<CommsInRaw, CommsEnvError> {
+        Ok(CommsInRaw {
+            inner: self::sys::CommsInRaw::from_env()?,
         })
     }
 }
 
-impl CommsOut {
+impl CommsOutRaw {
 
     /// Returns a [`CommsOut`] instance given by the parent Fleetspeak process.
-    pub fn from_env() -> Result<CommsOut, CommsEnvError> {
-        Ok(CommsOut {
-            inner: self::sys::CommsOut::from_env()?,
+    pub fn from_env() -> Result<CommsOutRaw, CommsEnvError> {
+        Ok(CommsOutRaw {
+            inner: self::sys::CommsOutRaw::from_env()?,
         })
     }
 }
 
-impl Read for CommsIn {
+impl Read for CommsInRaw {
 
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         self.inner.read(buf)
     }
 }
 
-impl Write for CommsOut {
+impl Write for CommsOutRaw {
 
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         self.inner.write(buf)
