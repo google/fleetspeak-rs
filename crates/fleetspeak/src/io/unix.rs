@@ -8,14 +8,12 @@ use super::{CommsEnvError, CommsEnvErrorRepr};
 /// Alternative for [`std::io::Stdin`] for communicating with Fleetspeak.
 pub struct CommsIn {
     /// File descriptor of the input channel passeed by the Fleetspeak process.
-    #[cfg(target_family = "unix")]
     fd: libc::c_int,
 }
 
 /// Alternative for [`std::io::Stdout`] for communicating with Fleetspeak.
 pub struct CommsOut {
     /// File descriptor of the output channel passeed by the Fleetspeak process.
-    #[cfg(target_family = "unix")]
     fd: libc::c_int,
 }
 
