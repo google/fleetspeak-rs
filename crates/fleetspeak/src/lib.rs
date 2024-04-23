@@ -213,16 +213,27 @@ pub fn receive_with_heartbeat(rate: Duration) -> Message {
 /// sending heartbeat signals) when another thread might be busy with reading
 /// messages.
 struct Connection {
-    input: Mutex<&'static mut std::fs::File>,
-    output: Mutex<&'static mut std::fs::File>,
+    input: Mutex<std::io::BufReader<crate::io::CommsInRaw>>,
+    output: Mutex<std::io::BufWriter<crate::io::CommsOutRaw>>,
 }
 
 lazy_static! {
     static ref CONNECTION: Connection = {
-        let input = file_from_env_var("FLEETSPEAK_COMMS_CHANNEL_INFD");
-        let output = file_from_env_var("FLEETSPEAK_COMMS_CHANNEL_OUTFD");
+        let mut input = match crate::io::CommsInRaw::from_env() {
+            Ok(input) => std::io::BufReader::new(input),
+            Err(error) => {
+                panic!("invalid input communication channel: {error}");
+            }
+        };
 
-        crate::io::handshake(input, output)
+        let mut output = match crate::io::CommsOutRaw::from_env() {
+            Ok(output) => std::io::BufWriter::new(output),
+            Err(error) => {
+                panic!("invalid output commmunication channel: {error}");
+            }
+        };
+
+        crate::io::handshake(&mut input, &mut output)
             .expect("handshake failure");
 
         log::info!("handshake successful");
@@ -243,108 +254,13 @@ lazy_static! {
 ///
 /// Any I/O error returned by the executed function indicates a fatal connection
 /// failure and ends with a panic.
-fn execute<F, T>(mutex: &Mutex<&mut std::fs::File>, f: F) -> T
+fn execute<C, F, T>(mutex: &Mutex<C>, f: F) -> T
 where
-    F: FnOnce(&mut std::fs::File) -> std::io::Result<T>,
+    F: FnOnce(&mut C) -> std::io::Result<T>,
 {
     let mut file = mutex.lock().expect("poisoned connection mutex");
     match f(&mut file) {
         Ok(value) => value,
         Err(error) => panic!("connection failure: {}", error),
     }
-}
-
-/// Creates a [`File`] object specified in the given environment variable.
-///
-/// Note that this function will panic if the environment variable `var` is not
-/// a valid file descriptor (in which case the library cannot be initialized and
-/// the service is unlikely to work anyway).
-///
-/// This function returns a static mutable reference to ensure that the file is
-/// never dropped.
-///
-/// [`File`]: std::fs::File
-fn file_from_env_var(var: &str) -> &'static mut std::fs::File {
-    let fd = std::env::var(var)
-        .expect(&format!("invalid variable `{}`", var))
-        .parse()
-        .expect(&format!("failed to parse file descriptor"));
-
-    // We run inside a critical section to guarantee that between verifying the
-    // descriptor and using `std::File::from_raw_*` functions (see the comments
-    // below) nothing closes it inbetween.
-    let mutex = Mutex::new(());
-    let guard = mutex.lock()
-        .unwrap();
-
-    // SAFETY: `std::fs::File::from_raw_fd` requires the file descriptor to be
-    // valid and open. We verify this through `fcntl` and panic if the check
-    // fails. Because we run within a critical section we are sure that the file
-    // was not closed at the moment we wrap the raw descriptor.
-    //
-    // Note that the whole issue is more subtle than this. While we uphold the
-    // safety requirements of `from_raw_fd`, we cannot guarantee that we are
-    // exclusive owner of the descriptor or that the descriptor remains open
-    // throughout the entirety of the process lifetime which might lead to other
-    // kinds of undefined behaviour. As an additional safety measure we return
-    // a static mutable reference to ensure that the file destructor is never
-    // called. See the discussion in [1].
-    //
-    // [1]: https://github.com/rust-lang/unsafe-code-guidelines/issues/434
-    #[cfg(target_family = "unix")]
-    let file = unsafe {
-        if libc::fcntl(fd, libc::F_GETFD) == -1 {
-            let error = std::io::Error::last_os_error();
-            panic!("invalid file descriptor '{fd}': {error}");
-        }
-
-        std::os::unix::io::FromRawFd::from_raw_fd(fd)
-    };
-
-    // SAFETY: `std::fs::File::from_raw_handle` requires the file handle to be
-    // valid, open and closable via `CloseHandle`. We verify this through a call
-    // to `GetFileType`: if the call fails or returns an unexpected file type,
-    // we panic. We expect the type to be a named pipe: this is what Fleetspeak
-    // should pass as and it is closable via `CloseHandle` [1] as required. We
-    // run within a critical section we are sure that the file was not closed at
-    // the moment we wrap the raw handle.
-    //
-    // See also remarks in the comment for the Unix branch of this method.
-    //
-    // [1]: https://learn.microsoft.com/en-us/windows/win32/api/handleapi/nf-handleapi-closehandle#remarks
-    #[cfg(target_family = "windows")]
-    let file = unsafe {
-        use windows_sys::Win32::{
-            Foundation::*,
-            Storage::FileSystem::*,
-        };
-
-        // We use `identity` to specify the type for the `parse` call above.
-        let handle = std::convert::identity::<HANDLE>(fd);
-
-        // We fail both in case there is something wrong with the handle (in
-        // which case the call to `GetFileType` should return unknown file type
-        // and set the last error value) or the file type is not as expected.
-        let file_type = GetFileType(handle);
-        if file_type != FILE_TYPE_PIPE {
-            let code = GetLastError();
-            if code != NO_ERROR {
-                let error = std::io::Error::from_raw_os_error(code as i32);
-                panic!("invalid file descriptor '{handle}': {error}");
-            } else {
-                panic!("wrong type of file descriptor '{handle}': {file_type}");
-            }
-        }
-
-        // `HANDLE` type from `windows-sys` and from the standard library are
-        // different (one is a pointer and one is `isize`), so we have to cast
-        // between them.
-        let handle = handle as std::os::windows::raw::HANDLE;
-
-        std::os::windows::io::FromRawHandle::from_raw_handle(handle)
-    };
-
-    drop(guard);
-
-    Box::leak(Box::new(file))
 }

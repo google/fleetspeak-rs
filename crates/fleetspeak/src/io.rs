@@ -9,6 +9,56 @@ use byteorder::{LittleEndian, ReadBytesExt as _, WriteBytesExt as _};
 
 use crate::Message;
 
+#[cfg(target_family = "unix")]
+mod unix;
+
+#[cfg(target_family = "windows")]
+mod windows;
+
+mod sys {
+    #[cfg(target_family = "unix")]
+    pub use crate::io::unix::*;
+
+    #[cfg(target_family = "windows")]
+    pub use crate::io::windows::*;
+}
+
+pub use self::sys::{
+    CommsInRaw,
+    CommsOutRaw,
+};
+
+/// An error returned in case instantiating communicaton channels fails.
+#[derive(Clone, Debug)]
+pub struct CommsEnvError {
+    repr: CommsEnvErrorRepr,
+}
+
+#[derive(Clone, Debug)]
+enum CommsEnvErrorRepr {
+    /// Communication channel is not specified in the environment.
+    NotSpecified,
+    /// Communication channel specified in the environment is not valid.
+    NotParsable(std::ffi::OsString),
+}
+
+impl std::fmt::Display for CommsEnvError {
+
+    fn fmt(&self, fmt: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.repr {
+            CommsEnvErrorRepr::NotSpecified => {
+                write!(fmt, "communication channel not specified")
+            }
+            CommsEnvErrorRepr::NotParsable(value) => {
+                write!(fmt, "invalid communication channel value: {value:?}")
+            }
+        }
+    }
+}
+
+impl std::error::Error for CommsEnvError {
+}
+
 /// Executes the handshake procedure.
 ///
 /// The handshake procedure consists of writing and reading magic numbers from
