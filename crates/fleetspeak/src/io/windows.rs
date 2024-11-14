@@ -21,6 +21,26 @@ pub struct CommsOutRaw {
     handle: windows_sys::Win32::Foundation::HANDLE,
 }
 
+// SAFETY: It is safe to send `CommsInRaw` between threads as there is no
+// dependence on thread-locality or other interior mutability shenanigans to
+// ensure its safety.
+//
+// This marker trait is not automatically implemented for this type because
+// handle is a raw pointer (which implements `!Send`) so we explicitly opt into
+// that.
+unsafe impl Send for CommsInRaw {
+}
+
+// SAFETY: It is safe to send `CommsOutRaw` between threads as there is no
+// dependence on thread-locality or other interior mutability shenanigans to
+// ensure its safety.
+//
+// This marker trait is not automatically implemented for this type because
+// handle is a raw pointer (which implements `!Send`) so we explicitly opt into
+// that.
+unsafe impl Send for CommsOutRaw {
+}
+
 impl CommsInRaw {
 
     /// Returns a [`CommsIn`] instance given by the parent Fleetspeak process.
@@ -72,8 +92,7 @@ impl std::io::Read for CommsInRaw {
         let status = unsafe {
             windows_sys::Win32::Storage::FileSystem::ReadFile(
                 self.handle,
-                // TODO(@panhania): Upgrade `windows-sys` crate and remove cast.
-                buf.as_mut_ptr().cast::<std::ffi::c_void>(),
+                buf.as_mut_ptr(),
                 buf_len,
                 count.as_mut_ptr(),
                 std::ptr::null_mut(),
@@ -173,8 +192,8 @@ where
     K: AsRef<std::ffi::OsStr>,
 {
     match std::env::var(key) {
-        Ok(string) => match string.parse() {
-            Ok(handle) => Ok(handle),
+        Ok(string) => match string.parse::<usize>() {
+            Ok(handle) => Ok(handle as windows_sys::Win32::Foundation::HANDLE),
             Err(_) => Err(CommsEnvError {
                 repr: CommsEnvErrorRepr::NotParsable(string.into()),
             }),
