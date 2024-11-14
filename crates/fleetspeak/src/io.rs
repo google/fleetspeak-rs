@@ -110,8 +110,6 @@ pub fn write_startup<W>(output: &mut W, version: &str) -> std::io::Result<()>
 where
     W: Write,
 {
-    use protobuf::Message as _;
-
     let mut data = fleetspeak_proto::channel::StartupData::new();
     data.set_pid(i64::from(std::process::id()));
     data.set_version(String::from(version));
@@ -119,8 +117,7 @@ where
     let mut proto = fleetspeak_proto::common::Message::new();
     proto.set_message_type(String::from("StartupData"));
     proto.mut_destination().set_service_name(String::from("system"));
-    proto.mut_data().set_type_url(type_url(&data));
-    proto.mut_data().set_value(data.write_to_bytes()?);
+    *proto.mut_data() = protobuf::well_known_types::any::Any::pack(&data)?;
 
     write_proto(output, proto)
 }
@@ -138,7 +135,7 @@ where
     proto.set_message_type(message.kind.unwrap_or_else(String::new));
     proto.mut_destination().set_service_name(message.service);
     // TODO: Consider a way of providing the type URL of the data being sent.
-    proto.mut_data().set_value(message.data);
+    proto.mut_data().value = message.data;
 
     write_proto(output, proto)
 }
@@ -174,7 +171,7 @@ where
     // should we error-out or return a default value? For the time being we
     // stick to the default approach, but if this proves to be not working
     // well in practice, it might be reconsidered.
-    let mut data = if proto.has_data() {
+    let data = if proto.has_data() {
         proto.take_data()
     } else {
         log::warn!("empty message from '{}'", service);
@@ -184,7 +181,7 @@ where
     Ok(Message {
         service: service,
         kind: Some(proto.message_type),
-        data: data.take_value(),
+        data: data.value,
     })
 }
 
@@ -202,7 +199,14 @@ where
 {
     use protobuf::Message as _;
 
-    output.write_u32::<LittleEndian>(proto.compute_size())?;
+    // Fleetspeak is not able to send messages bigger than 2 MiB anyway, so we
+    // generally do not expect overflows here.
+    let size = u32::try_from(proto.compute_size())
+        .map_err(|error| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, error)
+        })?;
+
+    output.write_u32::<LittleEndian>(size)?;
     proto.write_to_writer(output)?;
     write_magic(output)?;
     output.flush()?;
@@ -277,16 +281,6 @@ impl From<InvalidMagicError> for std::io::Error {
 
 const MAGIC: u32 = 0xf1ee1001;
 
-/// Computes a type URL of the given Protocol Buffers message.
-///
-/// This function should probably be part of the `protobuf` package but for some
-/// reason it is not and we have to implement it ourselves.
-fn type_url<M: protobuf::Message>(message: &M) -> String {
-    format!("{}/{}", TYPE_URL_PREFIX, message.descriptor().full_name())
-}
-
-const TYPE_URL_PREFIX: &'static str = "type.googleapis.com";
-
 #[cfg(test)]
 mod tests {
     use std::io::Cursor;
@@ -319,13 +313,5 @@ mod tests {
         let mut cur_in = Cursor::new(&mut buf_in[..]);
         let mut cur_out = Cursor::new(&mut buf_out[..]);
         assert!(handshake(&mut cur_in, &mut cur_out).is_err());
-    }
-
-    #[test]
-    fn type_url_startup_data() {
-        assert_eq! {
-            type_url(&fleetspeak_proto::channel::StartupData::new()),
-            "type.googleapis.com/fleetspeak.channel.StartupData"
-        };
     }
 }

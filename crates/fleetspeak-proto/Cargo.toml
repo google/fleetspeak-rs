@@ -23,4 +23,4 @@ exclude = [
 protobuf = { workspace = true }
 
 [build-dependencies]
-protobuf-codegen-pure = { workspace = true }
+protobuf-codegen = { workspace = true }

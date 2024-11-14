@@ -3,35 +3,34 @@
 // Use of this source code is governed by an MIT-style license that can be found
 // in the LICENSE file or at https://opensource.org/licenses/MIT.
 
-use std::io::Result;
 use std::path::PathBuf;
 
-fn cargo_out_dir() -> PathBuf {
-    let out_dir = std::env::var("OUT_DIR")
-        .expect("output folder not specified");
+const PROTOS: &'static [&'static str] = &[
+    "vendor/fleetspeak/fleetspeak/src/common/proto/fleetspeak/common.proto",
+    "vendor/fleetspeak/fleetspeak/src/client/channel/proto/fleetspeak_channel/channel.proto",
+];
 
-    PathBuf::from(out_dir)
-}
+fn main() {
+    let outdir: PathBuf = std::env::var("OUT_DIR")
+        .expect("no output directory")
+        .into();
 
-fn proto_out_dir() -> PathBuf {
-    cargo_out_dir().join("proto")
-}
+    for proto in PROTOS {
+        println!("cargo:rerun-if-changed={}", proto);
+    }
 
-fn main() -> Result<()> {
-    let proto_out_dir = proto_out_dir();
-    std::fs::create_dir_all(&proto_out_dir)?;
+    let proto_out_dir = outdir.join("proto");
+    std::fs::create_dir_all(&proto_out_dir).unwrap();
 
-    protobuf_codegen_pure::Codegen::new()
-        .out_dir(&proto_out_dir.to_str().unwrap())
+    let customize = protobuf_codegen::Customize::default()
+        .gen_mod_rs(true)
+        .generate_accessors(true);
+
+    protobuf_codegen::Codegen::new()
+        .pure()
+        .out_dir(&proto_out_dir)
         .include("vendor/fleetspeak/fleetspeak/src")
-        .include("vendor/protobuf/src")
-        .input("vendor/fleetspeak/fleetspeak/src/common/proto/fleetspeak/common.proto")
-        .input("vendor/fleetspeak/fleetspeak/src/client/channel/proto/fleetspeak_channel/channel.proto")
-        .customize(protobuf_codegen_pure::Customize {
-            gen_mod_rs: Some(true),
-            ..Default::default()
-        })
-        .run()?;
-
-    Ok(())
+        .inputs(PROTOS)
+        .customize(customize)
+        .run().unwrap();
 }

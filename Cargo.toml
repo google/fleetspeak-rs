@@ -15,5 +15,5 @@ homepage = "https://github.com/google/fleetspeak-rs"
 repository = "https://github.com/google/fleetspeak-rs"
 
 [workspace.dependencies]
-protobuf = { version = "2.27.1" }
-protobuf-codegen-pure = { version = "2.27.1" }
+protobuf = { version = "3.7.1" }
+protobuf-codegen = { version = "3.7.1" }
