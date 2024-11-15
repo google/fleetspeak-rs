@@ -1,6 +1,3 @@
 [submodule "proto/fleetspeak"]
 	path = crates/fleetspeak-proto/vendor/fleetspeak
 	url = https://github.com/google/fleetspeak
-[submodule "proto/vendor/protobuf"]
-	path = crates/fleetspeak-proto/vendor/protobuf
-	url = https://github.com/protocolbuffers/protobuf
