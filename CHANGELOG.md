@@ -1,3 +1,10 @@
+0.4.2 (2024-11-15)
+==================
+
+  * Upgraded the `protobuf` dependency to version 3.7.1.
+  * Bumped versions of multiple other dependencies.
+  * Added further measures against potential safety violations (#4).
+
 0.4.1 (2023-07-31)
 ==================
 
