@@ -5,8 +5,6 @@
 
 use std::io::{Read, Write};
 
-use byteorder::{LittleEndian, ReadBytesExt as _, WriteBytesExt as _};
-
 use crate::Message;
 
 #[cfg(target_family = "unix")]
@@ -206,7 +204,7 @@ where
             std::io::Error::new(std::io::ErrorKind::InvalidData, error)
         })?;
 
-    output.write_u32::<LittleEndian>(size)?;
+    output.write_all(&size.to_le_bytes())?;
     proto.write_to_writer(output)?;
     write_magic(output)?;
     output.flush()?;
@@ -223,7 +221,10 @@ fn read_proto<R>(input: &mut R) -> std::io::Result<fleetspeak_proto::common::Mes
 where
     R: Read,
 {
-    let len = input.read_u32::<LittleEndian>()? as usize;
+    let mut len_buf = [0u8; 4];
+    input.read_exact(&mut len_buf)?;
+    let len = u32::from_le_bytes(len_buf) as usize;
+
     let mut buf = vec!(0; len);
 
     input.read_exact(&mut buf[..])?;
@@ -237,7 +238,7 @@ fn write_magic<W>(output: &mut W) -> std::io::Result<()>
 where
     W: Write,
 {
-    output.write_u32::<LittleEndian>(MAGIC)?;
+    output.write_all(&MAGIC.to_le_bytes())?;
 
     Ok(())
 }
@@ -247,7 +248,10 @@ fn read_magic<R>(input: &mut R) -> std::io::Result<()>
 where
     R: Read,
 {
-    let magic = input.read_u32::<LittleEndian>()?;
+    let mut magic_buf = [0u8; 4];
+    input.read_exact(&mut magic_buf)?;
+
+    let magic = u32::from_le_bytes(magic_buf);
     if magic != MAGIC {
         return Err(InvalidMagicError { magic }.into());
     }
@@ -292,14 +296,19 @@ mod tests {
         let mut buf_out = [0; 1024];
 
         let mut cur = Cursor::new(&mut buf_in[..]);
-        assert!(cur.write_u32::<LittleEndian>(MAGIC).is_ok());
+        assert!(cur.write_all(&MAGIC.to_le_bytes()).is_ok());
 
         let mut cur_in = Cursor::new(&mut buf_in[..]);
         let mut cur_out = Cursor::new(&mut buf_out[..]);
         assert!(handshake(&mut cur_in, &mut cur_out).is_ok());
 
         let mut cur = Cursor::new(&mut buf_out[..]);
-        assert_eq!(cur.read_u32::<LittleEndian>().unwrap(), MAGIC);
+
+        let mut magic_buf = [0u8; 4];
+        cur.read_exact(&mut magic_buf).unwrap();
+        let magic = u32::from_le_bytes(magic_buf);
+
+        assert_eq!(magic, MAGIC);
     }
 
     #[test]
@@ -308,7 +317,7 @@ mod tests {
         let mut buf_out = [0; 1024];
 
         let mut cur = Cursor::new(&mut buf_in[..]);
-        assert!(cur.write_u32::<LittleEndian>(0xf1ee1337).is_ok());
+        assert!(cur.write_all(&0xf1ee1337u32.to_le_bytes()).is_ok());
 
         let mut cur_in = Cursor::new(&mut buf_in[..]);
         let mut cur_out = Cursor::new(&mut buf_out[..]);

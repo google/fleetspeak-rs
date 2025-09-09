@@ -1,3 +1,8 @@
+Upcoming release
+================
+
+  * Dropped dependency on the `byteorder` crate.
+
 0.4.2 (2024-11-15)
 ==================
 
