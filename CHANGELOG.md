@@ -1,6 +1,9 @@
 Upcoming release
 ================
 
+0.4.3 (2025-09-09)
+==================
+
   * Dropped dependency on the `byteorder` crate.
   * Dropped dependency on the `lazy_static` crate.
   * Bumped Rust edition to `2024`.
