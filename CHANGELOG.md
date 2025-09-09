@@ -4,6 +4,7 @@ Upcoming release
   * Dropped dependency on the `byteorder` crate.
   * Dropped dependency on the `lazy_static` crate.
   * Bumped Rust edition to `2024`.
+  * Upgraded the `windows-sys` dependency to version 0.60.2.
 
 0.4.2 (2024-11-15)
 ==================
