@@ -19,10 +19,8 @@
 
 mod io;
 
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
-
-use lazy_static::lazy_static;
 
 /// A Fleetspeak client communication message.
 ///
@@ -61,9 +59,9 @@ pub fn heartbeat() {
 ///
 /// [`heartbeat`]: crate::heartbeat
 pub fn heartbeat_with_throttle(rate: Duration) {
-    lazy_static! {
-        static ref LAST_HEARTBEAT: Mutex<Option<Instant>> = Mutex::new(None);
-    }
+    static LAST_HEARTBEAT: LazyLock<Mutex<Option<Instant>>> = {
+        LazyLock::new(|| Mutex::new(None))
+    };
 
     let mut last_heartbeat = LAST_HEARTBEAT.lock()
         .expect("poisoned heartbeat mutex");
@@ -217,33 +215,31 @@ struct Connection {
     output: Mutex<std::io::BufWriter<crate::io::CommsOutRaw>>,
 }
 
-lazy_static! {
-    static ref CONNECTION: Connection = {
-        let mut input = match crate::io::CommsInRaw::from_env() {
-            Ok(input) => std::io::BufReader::new(input),
-            Err(error) => {
-                panic!("invalid input communication channel: {error}");
-            }
-        };
-
-        let mut output = match crate::io::CommsOutRaw::from_env() {
-            Ok(output) => std::io::BufWriter::new(output),
-            Err(error) => {
-                panic!("invalid output commmunication channel: {error}");
-            }
-        };
-
-        crate::io::handshake(&mut input, &mut output)
-            .expect("handshake failure");
-
-        log::info!("handshake successful");
-
-        Connection {
-            input: Mutex::new(input),
-            output: Mutex::new(output),
+static CONNECTION: LazyLock<Connection> = LazyLock::new(|| {
+    let mut input = match crate::io::CommsInRaw::from_env() {
+        Ok(input) => std::io::BufReader::new(input),
+        Err(error) => {
+            panic!("invalid input communication channel: {error}");
         }
     };
-}
+
+    let mut output = match crate::io::CommsOutRaw::from_env() {
+        Ok(output) => std::io::BufWriter::new(output),
+        Err(error) => {
+            panic!("invalid output commmunication channel: {error}");
+        }
+    };
+
+    crate::io::handshake(&mut input, &mut output)
+        .expect("handshake failure");
+
+    log::info!("handshake successful");
+
+    Connection {
+        input: Mutex::new(input),
+        output: Mutex::new(output),
+    }
+});
 
 /// Executes the given function with a file extracted from the mutex.
 ///
