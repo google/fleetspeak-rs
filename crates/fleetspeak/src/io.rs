@@ -138,16 +138,21 @@ where
     write_proto(output, proto)
 }
 
-/// Reads a Fleetspeak message from the input buffer.
+/// Attempts to read a Fleetspeak message from the input buffer.
 ///
-/// This function will block until there is a message to be read in the
-/// input. Errors are reported in case of any I/O failure or if the read
+/// This function will block until there is a message to be read in the input
+/// or until the input reaches its end (in which case it will return `None`).
+///
+/// Errors are reported in case of any I/O failure or if the read
 /// message was malformed (e.g. it cannot be parsed to the expected type).
-pub fn read_message<R>(input: &mut R) -> std::io::Result<Message>
+pub fn try_read_message<R>(input: &mut R) -> std::io::Result<Option<Message>>
 where
     R: Read,
 {
-    let mut proto = read_proto(input)?;
+    let mut proto = match try_read_proto(input)? {
+        Some(proto) => proto,
+        None => return Ok(None),
+    };
 
     // While missing source address might not be considered a critical error
     // in most cases, for our own sanity we fail for such messages as well.
@@ -176,11 +181,11 @@ where
         Default::default()
     };
 
-    Ok(Message {
+    Ok(Some(Message {
         service: service,
         kind: Some(proto.message_type),
         data: data.value,
-    })
+    }))
 }
 
 /// Writes a raw Fleetspeak Protocol Buffers message to the output buffer.
@@ -212,17 +217,30 @@ where
     Ok(())
 }
 
-/// Reads a raw Fleetspeeak Protocol Buffers message from the input buffer.
+/// Attempts to read a raw Fleetspeak Protocol Buffers message from the input
+/// buffer.
 ///
-/// This function will block until there is a message to be read from the
-/// input. It will fail in case of any I/O error or if the message cannot
-/// be parsed as a Fleetspeak message.
-fn read_proto<R>(input: &mut R) -> std::io::Result<fleetspeak_proto::common::Message>
+/// This function will block until there is a message to be read from the input
+/// or until the input reaches its end (in which case it will return `None`). It
+/// will fail in case of any I/O error or if the message cannot be parsed.
+fn try_read_proto<R>(input: &mut R) -> std::io::Result<Option<fleetspeak_proto::common::Message>>
 where
     R: Read,
 {
     let mut len_buf = [0u8; 4];
-    input.read_exact(&mut len_buf)?;
+    let len_buf_read = input.read(&mut len_buf[..])?;
+    // Read returns 0 only if we are at the end of the input, so no more
+    // messages are coming.
+    if len_buf_read == 0 {
+        return Ok(None)
+    }
+    // `read` is not guaranteed to to fill the whole buffer, so once we read
+    // _some_ bytes, we `read_exact` the remaining part. We cannot do it in a
+    // single `read_exact` call because otherwise we cannot add the special case
+    // for end of the input.
+    //
+    // In most cases (`read` fills the whole buffer) it should be a no-op.
+    input.read_exact(&mut len_buf[len_buf_read..])?;
     let len = u32::from_le_bytes(len_buf) as usize;
 
     let mut buf = vec!(0; len);
@@ -230,7 +248,7 @@ where
     input.read_exact(&mut buf[..])?;
     read_magic(input)?;
 
-    Ok(protobuf::Message::parse_from_bytes(&buf[..])?)
+    Ok(Some(protobuf::Message::parse_from_bytes(&buf[..])?))
 }
 
 /// Writes the Fleetspeak magic to the output buffer.

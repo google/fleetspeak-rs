@@ -139,7 +139,41 @@ pub fn send(message: Message) {
 /// println!("Hello, {name}!");
 /// ```
 pub fn receive() -> Message {
-    execute(&CONNECTION.input, |buf| self::io::read_message(buf))
+    try_receive()
+        .expect("end of input")
+}
+
+/// Attempts to receive a message from the Fleetspeak server.
+///
+/// This function will block until there is a message to be read from the input
+/// or the input reaches its end (in which case it will return `None`).
+///
+/// Note that in particular it means your service will be unable to heartbeat
+/// properly. If you are not expecting the message to arrive quickly, you should
+/// use [`try_receive_with_heartbeat`] instead.
+///
+/// In case of any I/O failure or malformed message (e.g. due to parsing issues
+/// or when some fields are not being present), an error is reported.
+///
+/// [`try_receive_with_heartbeat`]: crate::try_receive_with_heartbeat
+///
+/// # Examples
+///
+/// ```no_run
+/// match fleetspeak::try_receive() {
+///     Some(message) => {
+///         let name = std::str::from_utf8(&message.data)
+///             .expect("invalid message content");
+///
+///         println!("Hello, {name}!");
+///     }
+///     None => {
+///         println!("No more messages!")
+///     }
+/// }
+/// ```
+pub fn try_receive() -> Option<Message> {
+    execute(&CONNECTION.input, |buf| self::io::try_read_message(buf))
 }
 
 /// Receive a message from the Fleetspeak server, heartbeating in background.
@@ -170,6 +204,45 @@ pub fn receive() -> Message {
 /// println!("Hello, {name}!");
 /// ```
 pub fn receive_with_heartbeat(rate: Duration) -> Message {
+    try_receive_with_heartbeat(rate)
+        .expect("end of input")
+}
+
+/// Receive a message from the Fleetspeak server, heartbeating in background.
+///
+/// Unlike [`try_receive`], `try_receive_with_heartbeat` will send heartbeat
+/// signals at the specified `rate` while waiting for the message.
+///
+/// This function is useful in the main loop of your service when it is not
+/// supposed to do anything until a request from the server arrives. If your
+/// service is actually awaiting for a specific message to come, you should
+/// use [`try_receive`] instead.
+///
+/// In case of the end of the input, `None` is returned.
+///
+/// In case of any I/O failure or malformed message (e.g. due to parsing issues
+/// or when some fields are not being present), an error is reported.
+///
+/// [`try_receive`]: crate::try_receive
+///
+/// # Examples
+///
+/// ```no_run
+/// use std::time::Duration;
+///
+/// match fleetspeak::try_receive_with_heartbeat(Duration::from_secs(1)) {
+///     Some(message) => {
+///         let name = std::str::from_utf8(&message.data)
+///             .expect("invalid message content");
+///
+///         println!("Hello, {name}!");
+///     }
+///     None => {
+///         println!("No more messages!")
+///     }
+/// }
+/// ```
+pub fn try_receive_with_heartbeat(rate: Duration) -> Option<Message> {
     // TODO(rust-lang/rust#35121): Replace with `!` once stable.
     enum Never {
     }
@@ -193,7 +266,7 @@ pub fn receive_with_heartbeat(rate: Duration) -> Message {
         }
     });
 
-    let message = receive();
+    let message = try_receive();
 
     // Notify the heartbeat thread to shut down. However, instead of sending any
     // real message we just shut the sender down and the receiver will receive
