@@ -1,6 +1,8 @@
 Upcoming release
 ================
 
+  * Bumped versions of multiple other dependencies.
+
 0.4.3 (2025-09-09)
 ==================
 
