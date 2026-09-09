@@ -15,7 +15,7 @@ documentation = "https://docs.rs/fleetspeak"
 
 [dependencies]
 fleetspeak-proto = { path = "../fleetspeak-proto", version = "0.4.3" }
-log = { version = "0.4.22" }
+log = { version = "0.4.33" }
 protobuf = { workspace = true }
 
 [target.'cfg(target_family = "unix")'.dependencies]
