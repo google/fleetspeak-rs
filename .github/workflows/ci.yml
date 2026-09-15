@@ -32,7 +32,16 @@ jobs:
           rustup --version
           rustc --version
           cargo --version
+      - name: 'Setup the Go toolchain'
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 'stable'
       - name: 'Build the library'
         run: cargo build
-      - name: 'Run tests for the library'
+      - name: 'Run unit tests for the library'
         run: cargo test
+      - name: 'Run end-to-end tests for the library'
+        run: |
+          cargo build --example hello
+          cd 'tests'
+          go test . --hello '../target/debug/examples/hello' --std_forward
