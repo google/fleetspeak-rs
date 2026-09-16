@@ -1,6 +1,9 @@
 Upcoming release
 ================
 
+0.4.4 (2026-09-16)
+==================
+
   * Bumped versions of multiple dependencies.
   * Add end-of-input aware message reception methods.
 
