@@ -10,9 +10,7 @@ use fleetspeak::Message;
 fn main() {
     fleetspeak::startup("0.0.1");
 
-    loop {
-        let packet = fleetspeak::receive_with_heartbeat(Duration::from_secs(1));
-
+    while let Some(packet) = fleetspeak::try_receive_with_heartbeat(Duration::from_secs(1)) {
         let request = std::str::from_utf8(&packet.data).unwrap();
         let response = format!("Hello, {}!", request);
 

@@ -100,7 +100,24 @@ impl std::io::Read for CommsInRaw {
         };
 
         if status == windows_sys::Win32::Foundation::FALSE {
-            return Err(std::io::Error::last_os_error());
+            let error = std::io::Error::last_os_error();
+            // If the pipe has been closed, `ReadPipe` will return `FALSE` and
+            // set last error to `ERROR_BROKEN_PIPE` [1]. This is different from
+            // Unix systems which return 0 to indicate end of stream, so to have
+            // uniform behaviour we intercept this error.
+            //
+            // This is what the Rust standard library does as well [2, 3, 4, 5].
+            //
+            // [1]: https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-readfile#pipes
+            // [2]: https://github.com/rust-lang/rust/blob/5392d2f545c6836dc79f209bcc14ac7179dbc4f2/library/std/src/sys/pal/windows/handle.rs#L82-L86
+            // [3]: https://github.com/rust-lang/rust/blob/5392d2f545c6836dc79f209bcc14ac7179dbc4f2/library/std/src/sys/pal/windows/handle.rs#L124-L129
+            // [4]: https://github.com/rust-lang/rust/blob/5392d2f545c6836dc79f209bcc14ac7179dbc4f2/library/std/src/sys/pal/windows/handle.rs#L178-L179
+            // [5]: https://github.com/rust-lang/rust/blob/5392d2f545c6836dc79f209bcc14ac7179dbc4f2/library/std/src/sys/pal/windows/handle.rs#L200-L204
+            if error.raw_os_error() == Some(windows_sys::Win32::Foundation::ERROR_BROKEN_PIPE as i32) {
+                return Ok(0)
+            }
+
+            return Err(error)
         }
 
         // SAFETY: We verified that the call to `ReadFile` succeeded and thus
