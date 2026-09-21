@@ -47,30 +47,30 @@ pub fn handshake_from_env() -> std::io::Result<(Sender, Receiver)> {
 
 impl Sender {
 
-    fn startup(&mut self, version: &str) -> std::io::Result<()> {
+    pub fn startup(&mut self, version: &str) -> std::io::Result<()> {
         self.inner.startup(version)
     }
 
-    fn heartbeat(&mut self) -> std::io::Result<()> {
+    pub fn heartbeat(&mut self) -> std::io::Result<()> {
         self.inner.heartbeat()
     }
 
-    fn heartbeat_with_throttle(&mut self, rate: Duration) -> std::io::Result<()> {
+    pub fn heartbeat_with_throttle(&mut self, rate: Duration) -> std::io::Result<()> {
         self.inner.heartbeat_with_throttle(rate)
     }
 
-    fn send(&mut self, message: Message) -> std::io::Result<()> {
+    pub fn send(&mut self, message: Message) -> std::io::Result<()> {
         self.inner.send(message)
     }
 }
 
 impl Receiver {
 
-    fn try_receive(&mut self) -> std::io::Result<Option<Message>> {
+    pub fn try_receive(&mut self) -> std::io::Result<Option<Message>> {
         self.inner.try_receive()
     }
 
-    fn try_receive_with_heartbeat(&mut self, rate: Duration) -> std::io::Result<Option<Message>> {
+    pub fn try_receive_with_heartbeat(&mut self, rate: Duration) -> std::io::Result<Option<Message>> {
         self.inner.try_receive_with_heartbeat(rate)
     }
 }
@@ -97,15 +97,15 @@ where
 
 impl<W: std::io::Write> SenderRaw<W> {
 
-    fn startup(&mut self, version: &str) -> std::io::Result<()> {
+    pub fn startup(&mut self, version: &str) -> std::io::Result<()> {
         self::io::write_startup(&mut self.output, version)
     }
 
-    fn heartbeat(&mut self) -> std::io::Result<()> {
+    pub fn heartbeat(&mut self) -> std::io::Result<()> {
         self::io::write_heartbeat(&mut self.output)
     }
 
-    fn heartbeat_with_throttle(&mut self, rate: Duration) -> std::io::Result<()> {
+    pub fn heartbeat_with_throttle(&mut self, rate: Duration) -> std::io::Result<()> {
         match self.last_heartbeat {
             Some(last_heartbeat) if last_heartbeat.elapsed() < rate => {
             // Do nothing if the last heartbeat happened more recently than the
@@ -121,18 +121,18 @@ impl<W: std::io::Write> SenderRaw<W> {
         Ok(())
     }
 
-    fn send(&mut self, message: Message) -> std::io::Result<()> {
+    pub fn send(&mut self, message: Message) -> std::io::Result<()> {
         self::io::write_message(&mut self.output, message)
     }
 }
 
 impl<R: std::io::Read> ReceiverRaw<R> {
 
-    fn try_receive(&mut self) -> std::io::Result<Option<Message>> {
+    pub fn try_receive(&mut self) -> std::io::Result<Option<Message>> {
         self::io::try_read_message(&mut self.input)
     }
 
-    fn try_receive_with_heartbeat(&mut self, rate: Duration) -> std::io::Result<Option<Message>> {
+    pub fn try_receive_with_heartbeat(&mut self, rate: Duration) -> std::io::Result<Option<Message>> {
         // TODO(rust-lang/rust#35121): Replace with `!` once stable.
         enum Never {
         }
