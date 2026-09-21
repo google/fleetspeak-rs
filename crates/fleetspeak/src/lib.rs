@@ -71,37 +71,7 @@ impl Receiver {
     }
 
     fn try_receive_with_heartbeat(&mut self, rate: Duration) -> std::io::Result<Option<Message>> {
-        // TODO(rust-lang/rust#35121): Replace with `!` once stable.
-        enum Never {
-        }
-
-        let (sender, receiver) = std::sync::mpsc::channel::<Never>();
-
-        std::thread::spawn(move || {
-            loop {
-                use std::sync::mpsc::TryRecvError::*;
-
-                // We keep hearbeating until the sender disconnects (in which
-                // case the receiver will receive a disconnection error).
-                match receiver.try_recv() {
-                    Ok(never) => match never {},
-                    Err(Empty) => (),
-                    Err(Disconnected) => return,
-                }
-
-                heartbeat();
-                std::thread::sleep(rate);
-            }
-        });
-
-        let message = self.try_receive()?;
-
-        // Notify the heartbeat thread to shut down. However, instead of sending
-        // any real message we just shut the sender down and the receiver will
-        // receive a disconnection error.
-        drop(sender);
-
-        Ok(message)
+        self.inner.try_receive_with_heartbeat(rate)
     }
 }
 
@@ -160,6 +130,40 @@ impl<R: std::io::Read> ReceiverRaw<R> {
 
     fn try_receive(&mut self) -> std::io::Result<Option<Message>> {
         self::io::try_read_message(&mut self.input)
+    }
+
+    fn try_receive_with_heartbeat(&mut self, rate: Duration) -> std::io::Result<Option<Message>> {
+        // TODO(rust-lang/rust#35121): Replace with `!` once stable.
+        enum Never {
+        }
+
+        let (sender, receiver) = std::sync::mpsc::channel::<Never>();
+
+        std::thread::spawn(move || {
+            loop {
+                use std::sync::mpsc::TryRecvError::*;
+
+                // We keep hearbeating until the sender disconnects (in which
+                // case the receiver will receive a disconnection error).
+                match receiver.try_recv() {
+                    Ok(never) => match never {},
+                    Err(Empty) => (),
+                    Err(Disconnected) => return,
+                }
+
+                heartbeat();
+                std::thread::sleep(rate);
+            }
+        });
+
+        let message = self.try_receive()?;
+
+        // Notify the heartbeat thread to shut down. However, instead of sending
+        // any real message we just shut the sender down and the receiver will
+        // receive a disconnection error.
+        drop(sender);
+
+        Ok(message)
     }
 }
 
