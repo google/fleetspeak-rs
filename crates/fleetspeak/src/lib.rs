@@ -39,8 +39,8 @@ pub fn handshake_from_env() -> std::io::Result<(Sender, Receiver)> {
     let output = crate::io::CommsOutRaw::from_env()
         .map_err(|error| std::io::Error::other(error))?;
 
-    let (tx, rx) = handshake(output, input)?;
-    Ok((Sender { inner: tx }, Receiver { inner: rx }))
+    let (sender, receiver) = handshake(output, input)?;
+    Ok((Sender { inner: sender }, Receiver { inner: receiver }))
 }
 
 impl Sender {
@@ -184,7 +184,7 @@ pub struct Message {
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
 pub fn heartbeat() {
-    execute(&CONNECTION.tx, |tx| tx.heartbeat())
+    execute(&CONNECTION.sender, |sender| sender.heartbeat())
 }
 
 /// Sends a heartbeat signal to the Fleetspeak client but no more frequently
@@ -198,7 +198,7 @@ pub fn heartbeat() {
 ///
 /// [`heartbeat`]: crate::heartbeat
 pub fn heartbeat_with_throttle(rate: Duration) {
-    execute(&CONNECTION.tx, |tx| tx.heartbeat_with_throttle(rate))
+    execute(&CONNECTION.sender, |sender| sender.heartbeat_with_throttle(rate))
 }
 
 /// Sends a system message with startup information to the Fleetspeak client.
@@ -210,7 +210,7 @@ pub fn heartbeat_with_throttle(rate: Duration) {
 /// The `version` string should contain a self-reported version of the service.
 /// This data is used primarily for statistics.
 pub fn startup(version: &str) {
-    execute(&CONNECTION.tx, |tx| tx.startup(version))
+    execute(&CONNECTION.sender, |sender| sender.startup(version))
 }
 
 /// Sends the message to the Fleetspeak server.
@@ -235,7 +235,7 @@ pub fn startup(version: &str) {
 /// });
 /// ```
 pub fn send(message: Message) {
-    execute(&CONNECTION.tx, |tx| tx.send(message))
+    execute(&CONNECTION.sender, |sender| sender.send(message))
 }
 
 /// Receives a message from the Fleetspeak server.
@@ -295,7 +295,7 @@ pub fn receive() -> Message {
 /// }
 /// ```
 pub fn try_receive() -> Option<Message> {
-    execute(&CONNECTION.rx, |rx| rx.try_receive())
+    execute(&CONNECTION.receiver, |receiver| receiver.try_receive())
 }
 
 /// Receive a message from the Fleetspeak server, heartbeating in background.
@@ -365,7 +365,7 @@ pub fn receive_with_heartbeat(rate: Duration) -> Message {
 /// }
 /// ```
 pub fn try_receive_with_heartbeat(rate: Duration) -> Option<Message> {
-    execute(&CONNECTION.rx, |rx| rx.try_receive_with_heartbeat(rate))
+    execute(&CONNECTION.receiver, |receiver| receiver.try_receive_with_heartbeat(rate))
 }
 
 /// A connection to the Fleetspeak client.
@@ -376,19 +376,19 @@ pub fn try_receive_with_heartbeat(rate: Duration) -> Option<Message> {
 /// sending heartbeat signals) when another thread might be busy with reading
 /// messages.
 struct Connection {
-    tx: Mutex<Sender>,
-    rx: Mutex<Receiver>,
+    sender: Mutex<Sender>,
+    receiver: Mutex<Receiver>,
 }
 
 static CONNECTION: LazyLock<Connection> = LazyLock::new(|| {
-    let (tx, rx) = handshake_from_env()
+    let (sender, receiver) = handshake_from_env()
         .expect("handshake failure");
 
     log::info!("handshake successful");
 
     Connection {
-        tx: Mutex::new(tx),
-        rx: Mutex::new(rx),
+        sender: Mutex::new(sender),
+        receiver: Mutex::new(receiver),
     }
 });
 
