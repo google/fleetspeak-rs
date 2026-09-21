@@ -34,12 +34,14 @@ pub struct Receiver {
 pub fn handshake_from_env() -> std::io::Result<(Sender, Receiver)> {
     // TODO(@panhania): Improve error reporting.
     let input = crate::io::CommsInRaw::from_env()
-        .map_err(|error| std::io::Error::other(error))?;
+        .map_err(CommsInEnvError)?;
 
     let output = crate::io::CommsOutRaw::from_env()
-        .map_err(|error| std::io::Error::other(error))?;
+        .map_err(CommsOutEnvError)?;
 
-    let (sender, receiver) = handshake(output, input)?;
+    let (sender, receiver) = handshake(output, input)
+        .map_err(HandshakeError)?;
+
     Ok((Sender { inner: sender }, Receiver { inner: receiver }))
 }
 
@@ -409,5 +411,65 @@ where
     match f(&mut file) {
         Ok(value) => value,
         Err(error) => panic!("connection failure: {}", error),
+    }
+}
+
+#[derive(Debug)]
+struct HandshakeError(std::io::Error);
+
+impl std::fmt::Display for HandshakeError {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Fleetspeak handshake failure: {}", self.0)
+    }
+}
+
+impl std::error::Error for HandshakeError {
+}
+
+impl From<HandshakeError> for std::io::Error {
+
+    fn from(error: HandshakeError) -> std::io::Error {
+        std::io::Error::other(error)
+    }
+}
+
+#[derive(Debug)]
+struct CommsInEnvError(crate::io::CommsEnvError);
+
+impl std::fmt::Display for CommsInEnvError {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid Fleetspeak input pipe env var: {}", self.0)
+    }
+}
+
+impl std::error::Error for CommsInEnvError {
+}
+
+impl From<CommsInEnvError> for std::io::Error {
+
+    fn from(error: CommsInEnvError) -> std::io::Error {
+        std::io::Error::other(error)
+    }
+}
+
+#[derive(Debug)]
+struct CommsOutEnvError(crate::io::CommsEnvError);
+
+impl std::fmt::Display for CommsOutEnvError {
+
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "invalid Fleetspeak output pipe env var: {}", self.0)
+    }
+}
+
+impl std::error::Error for CommsOutEnvError {
+}
+
+impl From<CommsOutEnvError> for std::io::Error {
+
+    fn from(error: CommsOutEnvError) -> std::io::Error {
+        std::io::Error::other(error)
     }
 }
