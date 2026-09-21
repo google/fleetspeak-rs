@@ -22,6 +22,81 @@ mod io;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
+pub struct Sender(SenderRaw<crate::io::CommsOutRaw>);
+pub struct Receiver(ReceiverRaw<crate::io::CommsInRaw>);
+
+// TODO(@panhania): Mark as `unsafe`.
+pub fn handshake_from_env() -> std::io::Result<(Sender, Receiver)> {
+    // TODO(@panhania): Improve error reporting.
+    let input = crate::io::CommsInRaw::from_env()
+        .map_err(|error| std::io::Error::other(error))?;
+
+    let output = crate::io::CommsOutRaw::from_env()
+        .map_err(|error| std::io::Error::other(error))?;
+
+    let (tx, rx) = handshake(output, input)?;
+    Ok((Sender(tx), Receiver(rx)))
+}
+
+impl Sender {
+
+    fn startup(&mut self, version: &str) -> std::io::Result<()> {
+        self.0.startup(version)
+    }
+
+    fn heartbeat(&mut self) -> std::io::Result<()> {
+        self.0.heartbeat()
+    }
+
+    fn send(&mut self, message: Message) -> std::io::Result<()> {
+        self.0.send(message)
+    }
+}
+
+impl Receiver {
+
+    fn try_receive(&mut self) -> std::io::Result<Option<Message>> {
+        self.0.try_receive()
+    }
+}
+
+pub struct SenderRaw<W: std::io::Write>(W);
+
+pub struct ReceiverRaw<R: std::io::Read>(R);
+
+pub fn handshake<W, R>(mut output: W, mut input: R) -> std::io::Result<(SenderRaw<W>, ReceiverRaw<R>)>
+where
+    W: std::io::Write,
+    R: std::io::Read,
+{
+    // TODO(@panhania): Improve error reporting.
+    crate::io::handshake(&mut input, &mut output)?;
+
+    Ok((SenderRaw(output), ReceiverRaw(input)))
+}
+
+impl<W: std::io::Write> SenderRaw<W> {
+
+    fn startup(&mut self, version: &str) -> std::io::Result<()> {
+        self::io::write_startup(&mut self.0, version)
+    }
+
+    fn heartbeat(&mut self) -> std::io::Result<()> {
+        self::io::write_heartbeat(&mut self.0)
+    }
+
+    fn send(&mut self, message: Message) -> std::io::Result<()> {
+        self::io::write_message(&mut self.0, message)
+    }
+}
+
+impl<R: std::io::Read> ReceiverRaw<R> {
+
+    fn try_receive(&mut self) -> std::io::Result<Option<Message>> {
+        self::io::try_read_message(&mut self.0)
+    }
+}
+
 /// A Fleetspeak client communication message.
 ///
 /// This structure represents incoming or outgoing message objects delivered by
@@ -45,7 +120,7 @@ pub struct Message {
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
 pub fn heartbeat() {
-    execute(&CONNECTION.output, |buf| self::io::write_heartbeat(buf))
+    execute(&CONNECTION.tx, |tx| tx.heartbeat())
 }
 
 /// Sends a heartbeat signal to the Fleetspeak client but no more frequently
@@ -88,7 +163,7 @@ pub fn heartbeat_with_throttle(rate: Duration) {
 /// The `version` string should contain a self-reported version of the service.
 /// This data is used primarily for statistics.
 pub fn startup(version: &str) {
-    execute(&CONNECTION.output, |buf| self::io::write_startup(buf, version))
+    execute(&CONNECTION.tx, |tx| tx.startup(version))
 }
 
 /// Sends the message to the Fleetspeak server.
@@ -113,7 +188,7 @@ pub fn startup(version: &str) {
 /// });
 /// ```
 pub fn send(message: Message) {
-    execute(&CONNECTION.output, |buf| self::io::write_message(buf, message))
+    execute(&CONNECTION.tx, |tx| tx.send(message))
 }
 
 /// Receives a message from the Fleetspeak server.
@@ -173,7 +248,7 @@ pub fn receive() -> Message {
 /// }
 /// ```
 pub fn try_receive() -> Option<Message> {
-    execute(&CONNECTION.input, |buf| self::io::try_read_message(buf))
+    execute(&CONNECTION.rx, |rx| rx.try_receive())
 }
 
 /// Receive a message from the Fleetspeak server, heartbeating in background.
@@ -284,33 +359,19 @@ pub fn try_receive_with_heartbeat(rate: Duration) -> Option<Message> {
 /// sending heartbeat signals) when another thread might be busy with reading
 /// messages.
 struct Connection {
-    input: Mutex<std::io::BufReader<crate::io::CommsInRaw>>,
-    output: Mutex<std::io::BufWriter<crate::io::CommsOutRaw>>,
+    tx: Mutex<Sender>,
+    rx: Mutex<Receiver>,
 }
 
 static CONNECTION: LazyLock<Connection> = LazyLock::new(|| {
-    let mut input = match crate::io::CommsInRaw::from_env() {
-        Ok(input) => std::io::BufReader::new(input),
-        Err(error) => {
-            panic!("invalid input communication channel: {error}");
-        }
-    };
-
-    let mut output = match crate::io::CommsOutRaw::from_env() {
-        Ok(output) => std::io::BufWriter::new(output),
-        Err(error) => {
-            panic!("invalid output commmunication channel: {error}");
-        }
-    };
-
-    crate::io::handshake(&mut input, &mut output)
+    let (tx, rx) = handshake_from_env()
         .expect("handshake failure");
 
     log::info!("handshake successful");
 
     Connection {
-        input: Mutex::new(input),
-        output: Mutex::new(output),
+        tx: Mutex::new(tx),
+        rx: Mutex::new(rx),
     }
 });
 
