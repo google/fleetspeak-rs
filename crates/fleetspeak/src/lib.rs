@@ -53,6 +53,10 @@ impl Sender {
         self.inner.heartbeat()
     }
 
+    fn heartbeat_with_throttle(&mut self, rate: Duration) -> std::io::Result<()> {
+        self.inner.heartbeat_with_throttle(rate)
+    }
+
     fn send(&mut self, message: Message) -> std::io::Result<()> {
         self.inner.send(message)
     }
@@ -67,6 +71,7 @@ impl Receiver {
 
 pub struct SenderRaw<W: std::io::Write> {
     output: W,
+    last_heartbeat: Option<std::time::Instant>,
 }
 
 pub struct ReceiverRaw<R: std::io::Read> {
@@ -81,7 +86,7 @@ where
     // TODO(@panhania): Improve error reporting.
     crate::io::handshake(&mut input, &mut output)?;
 
-    Ok((SenderRaw { output }, ReceiverRaw { input } ))
+    Ok((SenderRaw { output, last_heartbeat: None }, ReceiverRaw { input } ))
 }
 
 impl<W: std::io::Write> SenderRaw<W> {
@@ -92,6 +97,22 @@ impl<W: std::io::Write> SenderRaw<W> {
 
     fn heartbeat(&mut self) -> std::io::Result<()> {
         self::io::write_heartbeat(&mut self.output)
+    }
+
+    fn heartbeat_with_throttle(&mut self, rate: Duration) -> std::io::Result<()> {
+        match self.last_heartbeat {
+            Some(last_heartbeat) if last_heartbeat.elapsed() < rate => {
+            // Do nothing if the last heartbeat happened more recently than the
+            // specified heartbeat rate.
+                return Ok(())
+            }
+            _ => (),
+        }
+
+        self.heartbeat()?;
+        self.last_heartbeat = Some(Instant::now());
+
+        Ok(())
     }
 
     fn send(&mut self, message: Message) -> std::io::Result<()> {
@@ -143,24 +164,7 @@ pub fn heartbeat() {
 ///
 /// [`heartbeat`]: crate::heartbeat
 pub fn heartbeat_with_throttle(rate: Duration) {
-    static LAST_HEARTBEAT: LazyLock<Mutex<Option<Instant>>> = {
-        LazyLock::new(|| Mutex::new(None))
-    };
-
-    let mut last_heartbeat = LAST_HEARTBEAT.lock()
-        .expect("poisoned heartbeat mutex");
-
-    match *last_heartbeat {
-        Some(last_heartbeat) if last_heartbeat.elapsed() < rate => {
-            // Do nothing if the last heartbeat happened more recently than the
-            // specified heartbeat rate.
-            return;
-        }
-        _ => (),
-    }
-
-    heartbeat();
-    *last_heartbeat = Some(Instant::now());
+    execute(&CONNECTION.tx, |tx| tx.heartbeat_with_throttle(rate))
 }
 
 /// Sends a system message with startup information to the Fleetspeak client.
