@@ -22,8 +22,13 @@ mod io;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
-pub struct Sender(SenderRaw<crate::io::CommsOutRaw>);
-pub struct Receiver(ReceiverRaw<crate::io::CommsInRaw>);
+pub struct Sender {
+    inner: SenderRaw<crate::io::CommsOutRaw>,
+}
+
+pub struct Receiver {
+    inner: ReceiverRaw<crate::io::CommsInRaw>,
+}
 
 // TODO(@panhania): Mark as `unsafe`.
 pub fn handshake_from_env() -> std::io::Result<(Sender, Receiver)> {
@@ -35,34 +40,38 @@ pub fn handshake_from_env() -> std::io::Result<(Sender, Receiver)> {
         .map_err(|error| std::io::Error::other(error))?;
 
     let (tx, rx) = handshake(output, input)?;
-    Ok((Sender(tx), Receiver(rx)))
+    Ok((Sender { inner: tx }, Receiver { inner: rx }))
 }
 
 impl Sender {
 
     fn startup(&mut self, version: &str) -> std::io::Result<()> {
-        self.0.startup(version)
+        self.inner.startup(version)
     }
 
     fn heartbeat(&mut self) -> std::io::Result<()> {
-        self.0.heartbeat()
+        self.inner.heartbeat()
     }
 
     fn send(&mut self, message: Message) -> std::io::Result<()> {
-        self.0.send(message)
+        self.inner.send(message)
     }
 }
 
 impl Receiver {
 
     fn try_receive(&mut self) -> std::io::Result<Option<Message>> {
-        self.0.try_receive()
+        self.inner.try_receive()
     }
 }
 
-pub struct SenderRaw<W: std::io::Write>(W);
+pub struct SenderRaw<W: std::io::Write> {
+    output: W,
+}
 
-pub struct ReceiverRaw<R: std::io::Read>(R);
+pub struct ReceiverRaw<R: std::io::Read> {
+    input: R,
+}
 
 pub fn handshake<W, R>(mut output: W, mut input: R) -> std::io::Result<(SenderRaw<W>, ReceiverRaw<R>)>
 where
@@ -72,28 +81,28 @@ where
     // TODO(@panhania): Improve error reporting.
     crate::io::handshake(&mut input, &mut output)?;
 
-    Ok((SenderRaw(output), ReceiverRaw(input)))
+    Ok((SenderRaw { output }, ReceiverRaw { input } ))
 }
 
 impl<W: std::io::Write> SenderRaw<W> {
 
     fn startup(&mut self, version: &str) -> std::io::Result<()> {
-        self::io::write_startup(&mut self.0, version)
+        self::io::write_startup(&mut self.output, version)
     }
 
     fn heartbeat(&mut self) -> std::io::Result<()> {
-        self::io::write_heartbeat(&mut self.0)
+        self::io::write_heartbeat(&mut self.output)
     }
 
     fn send(&mut self, message: Message) -> std::io::Result<()> {
-        self::io::write_message(&mut self.0, message)
+        self::io::write_message(&mut self.output, message)
     }
 }
 
 impl<R: std::io::Read> ReceiverRaw<R> {
 
     fn try_receive(&mut self) -> std::io::Result<Option<Message>> {
-        self::io::try_read_message(&mut self.0)
+        self::io::try_read_message(&mut self.input)
     }
 }
 
