@@ -165,6 +165,27 @@ impl<R: std::io::Read> ReceiverRaw<R> {
     }
 }
 
+impl<R: std::io::Read> IntoIterator for ReceiverRaw<R> {
+    type Item = std::io::Result<Message>;
+    type IntoIter = RawIntoIter<R>;
+
+    fn into_iter(self) -> RawIntoIter<R> {
+        RawIntoIter { receiver: self }
+    }
+}
+
+pub struct RawIntoIter<R: std::io::Read> {
+    receiver: ReceiverRaw<R>,
+}
+
+impl<R: std::io::Read> Iterator for RawIntoIter<R> {
+    type Item = std::io::Result<Message>;
+
+    fn next(&mut self) -> Option<std::io::Result<Message>> {
+        self.receiver.try_receive().transpose()
+    }
+}
+
 /// A Fleetspeak client communication message.
 ///
 /// This structure represents incoming or outgoing message objects delivered by
