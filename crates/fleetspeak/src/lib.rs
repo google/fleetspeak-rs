@@ -39,9 +39,7 @@ pub fn handshake_from_env() -> std::io::Result<(Sender, Receiver)> {
     let output = crate::io::CommsOutRaw::from_env()
         .map_err(CommsOutEnvError)?;
 
-    let (sender, receiver) = handshake(output, input)
-        .map_err(HandshakeError)?;
-
+    let (sender, receiver) = handshake(output, input)?;
     Ok((Sender { inner: sender }, Receiver { inner: receiver }))
 }
 
@@ -89,8 +87,8 @@ where
     W: std::io::Write,
     R: std::io::Read,
 {
-    // TODO(@panhania): Improve error reporting.
-    crate::io::handshake(&mut input, &mut output)?;
+    crate::io::handshake(&mut input, &mut output)
+        .map_err(HandshakeError)?;
 
     Ok((SenderRaw { output, last_heartbeat: None }, ReceiverRaw { input } ))
 }
