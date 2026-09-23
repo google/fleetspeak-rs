@@ -93,27 +93,69 @@ impl Comms {
         enum Never {
         }
 
-        let (sender, receiver) = std::sync::mpsc::channel::<Never>();
+        // The code below spawns 2 threads:
+        //
+        // * A heartbeat thread that actually sends heartbeat signals through
+        //   the Fleetspeak pipe. Because it needs to access the pipe, it needs
+        //   to be a scoped thread.
+        // * A signaler threat that sends signals to the heartbeat thread at
+        //   the given rate. This thread will mostly just sleep and because we
+        //   want to have low latency of returning messages it cannot be scoped
+        //   (otherwise we would have to await for the thread to wakeup in order
+        //   to join it).
+        //
+        // Once the message is read, the main thread notifies both to shutdown:
+        // the scoped one will do so immediately but the signaling one will do
+        // so only after wakeup which happens after this function exits.
+
+        enum Signal {
+            Heartbeat,
+            Shutdown,
+        }
+
+        let (main_sender, main_receiver) = std::sync::mpsc::channel::<Never>();
+        let (signal_sender, signal_receiver) = std::sync::mpsc::channel::<Signal>();
+
+        let signaler_signal_sender = signal_sender.clone();
+        std::thread::spawn(move || {
+            loop {
+                use std::sync::mpsc::TryRecvError::*;
+
+                // We keep hearbeating until the sender disconnects (in which
+                // case the receiver will receive a disconnection error).
+                match main_receiver.try_recv() {
+                    Ok(never) => match never {},
+                    Err(Empty) => (),
+                    Err(Disconnected) => return,
+                }
+
+                match signaler_signal_sender.send(Signal::Heartbeat) {
+                    Ok(()) => (),
+                    // It might be possible (actually, this is quite expected as
+                    // we sleep most of the time here) that the heartbeating
+                    // thread was ordered to shutdown in which case the signaler
+                    // is no longer needed.
+                    Err(_) => return,
+                }
+
+                std::thread::sleep(rate);
+            }
+        });
 
         std::thread::scope(|scope| {
             let thread = scope.spawn(move || {
                 loop {
-                    use std::sync::mpsc::TryRecvError::*;
-
                     // We keep hearbeating until the sender disconnects (in
                     // which case the receiver will receive a disconnection
                     // error).
-                    match receiver.try_recv() {
-                        Ok(never) => match never {},
-                        Err(Empty) => (),
-                        Err(Disconnected) => return Ok(()),
+                    match signal_receiver.recv() {
+                        Ok(Signal::Heartbeat) => match self.heartbeat() {
+                            Ok(()) => (),
+                            Err(error) => return Err(error),
+                        }
+                        Ok(Signal::Shutdown) => return Ok(()),
+                        Err(std::sync::mpsc::RecvError) => return Ok(()),
                     }
-
-                    match self.heartbeat() {
-                        Ok(()) => (),
-                        Err(error) => return Err(error),
-                    }
-                    std::thread::sleep(rate);
                 }
             });
 
@@ -122,11 +164,13 @@ impl Comms {
             // Notify the heartbeat thread to shut down. However, instead of
             // sending any real message we just shut the sender down and the
             // receiver will receive a disconnection error.
-            drop(sender);
+            drop(main_sender);
 
-            // TODO(@panhania): Because now we await the child thread (which is
-            // most likely asleep), this increases the latency of message
-            // delivery to the heartbeat rate which is not great).
+            // If the heartbeating thread is already down, failing to deliver
+            // its shutdown message is not a big deal. And it can be down only
+            // because of an error which we handle below.
+            let _ = signal_sender.send(Signal::Shutdown);
+
             match thread.join() {
                 Ok(Ok(())) => (),
                 Ok(Err(error)) => return Err(error),
