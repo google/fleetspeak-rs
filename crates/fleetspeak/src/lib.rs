@@ -95,31 +95,46 @@ impl Comms {
 
         let (sender, receiver) = std::sync::mpsc::channel::<Never>();
 
-        std::thread::spawn(move || {
-            loop {
-                use std::sync::mpsc::TryRecvError::*;
+        std::thread::scope(|scope| {
+            let thread = scope.spawn(move || {
+                loop {
+                    use std::sync::mpsc::TryRecvError::*;
 
-                // We keep hearbeating until the sender disconnects (in which
-                // case the receiver will receive a disconnection error).
-                match receiver.try_recv() {
-                    Ok(never) => match never {},
-                    Err(Empty) => (),
-                    Err(Disconnected) => return,
+                    // We keep hearbeating until the sender disconnects (in
+                    // which case the receiver will receive a disconnection
+                    // error).
+                    match receiver.try_recv() {
+                        Ok(never) => match never {},
+                        Err(Empty) => (),
+                        Err(Disconnected) => return Ok(()),
+                    }
+
+                    match self.heartbeat() {
+                        Ok(()) => (),
+                        Err(error) => return Err(error),
+                    }
+                    std::thread::sleep(rate);
                 }
+            });
 
-                heartbeat();
-                std::thread::sleep(rate);
+            let message = self.try_receive()?;
+
+            // Notify the heartbeat thread to shut down. However, instead of
+            // sending any real message we just shut the sender down and the
+            // receiver will receive a disconnection error.
+            drop(sender);
+
+            // TODO(@panhania): Because now we await the child thread (which is
+            // most likely asleep), this increases the latency of message
+            // delivery to the heartbeat rate which is not great).
+            match thread.join() {
+                Ok(Ok(())) => (),
+                Ok(Err(error)) => return Err(error),
+                Err(error) => std::panic::resume_unwind(error),
             }
-        });
 
-        let message = self.try_receive()?;
-
-        // Notify the heartbeat thread to shut down. However, instead of sending
-        // any real message we just shut the sender down and the receiver will
-        // receive a disconnection error.
-        drop(sender);
-
-        Ok(message)
+            Ok(message)
+        })
     }
 }
 
