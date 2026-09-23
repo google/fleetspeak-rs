@@ -32,13 +32,32 @@ pub struct Comms {
 
 impl Comms {
 
-    // TODO(@panhania): Mark as `unsafe`.
-    pub fn from_env() -> std::io::Result<Comms> {
-        let mut raw_in = crate::io::CommsInRaw::from_env()
-            .map_err(CommsInEnvError)?;
+    // Returns a [`Comms`] instance given by the parent Fleetspeak process.
+    ///
+    /// # Safety
+    ///
+    /// This function must be invoked where the environment is guaranteed not to
+    /// have been tampered with (e.g. at the beginning of the `main` function),
+    /// so that it contains values really set by Fleetspeak (and not e.g. file
+    /// descriptors of Rust-allocated resources "leaked" by [`as_raw_fd`][1].
+    ///
+    /// This is to adhere to [I/O safety][2] requirements.
+    ///
+    /// Synchronization is ensured on per-instance basis, so the users should
+    /// ensure that this is called only once in the program lifetime.
+    ///
+    /// [1]: https://doc.rust-lang.org/std/os/fd/trait.AsRawFd.html#tymethod.as_raw_fd
+    /// [2]: https://rust-lang.github.io/rfcs/3128-io-safety.html
+    pub unsafe fn from_env() -> std::io::Result<Comms> {
+        // SAFETY: Safety contract is the same as for the outer function.
+        let mut raw_in = unsafe {
+            crate::io::CommsInRaw::from_env()
+        }.map_err(CommsInEnvError)?;
 
-        let mut raw_out = crate::io::CommsOutRaw::from_env()
-            .map_err(CommsOutEnvError)?;
+        // SAFETY: Safety contract is the same as for the outer function.
+        let mut raw_out = unsafe {
+            crate::io::CommsOutRaw::from_env()
+        }.map_err(CommsOutEnvError)?;
 
         crate::io::handshake(&mut raw_in, &mut raw_out)
             .map_err(HandshakeError)?;
@@ -443,8 +462,15 @@ pub fn try_receive_with_heartbeat(rate: Duration) -> Option<Message> {
 }
 
 static COMMS: LazyLock<Comms> = LazyLock::new(|| {
-    let comms = Comms::from_env()
-        .expect("comms initialization failure");
+    // SAFETY: This is not entirely safe (we cannot guarantee when this code
+    // runs and what is inside the environment variables at that time).
+    //
+    // Unfortunately, it cannot be made entirely safe, this is why functions
+    // using this are marked as deprecated and are slated for removal in the
+    // next version.
+    let comms = unsafe {
+        Comms::from_env()
+    }.expect("comms initialization failure");
 
     log::info!("comms initialized");
 

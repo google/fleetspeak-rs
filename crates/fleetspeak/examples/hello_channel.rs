@@ -10,8 +10,11 @@ use std::time::Duration;
 use fleetspeak::Message;
 
 fn main() {
-    let fleetspeak = fleetspeak::Comms::from_env()
-        .expect("failed to handshake Fleetspeak connection");
+    // SAFETY: We call `from_env` at the beginning of `main` so nothing could
+    // have tampered with it. We also never invoke it again anywhere else.
+    let fleetspeak = unsafe {
+        fleetspeak::Comms::from_env()
+    }.expect("failed to handshake Fleetspeak connection");
 
     fleetspeak.startup("0.0.1")
         .expect("failed to send Fleetspeak startup message");
