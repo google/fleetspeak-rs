@@ -117,8 +117,13 @@ impl Comms {
         let (signal_sender, signal_receiver) = std::sync::mpsc::channel::<Signal>();
 
         let signaler_signal_sender = signal_sender.clone();
-        std::thread::spawn(move || {
-            loop {
+
+        std::thread::Builder::new()
+            // Our threads are pretty much dumb loops, so almost no stack size
+            // is really necessary. We stick to 64 KiB as Rust runtime needs
+            // some and to be on the safe side.
+            .stack_size(64 * 1024)
+            .spawn(move || loop {
                 use std::sync::mpsc::TryRecvError::*;
 
                 // We keep hearbeating until the sender disconnects (in which
@@ -139,12 +144,14 @@ impl Comms {
                 }
 
                 std::thread::sleep(rate);
-            }
-        });
+            })?;
 
         std::thread::scope(|scope| {
-            let thread = scope.spawn(move || {
-                loop {
+            let thread = std::thread::Builder::new()
+                // See comment about the stack size on the builder for the
+                // signaler thread.
+                .stack_size(64 * 1024)
+                .spawn_scoped(scope, move || loop {
                     // We keep hearbeating until the sender disconnects (in
                     // which case the receiver will receive a disconnection
                     // error).
@@ -156,8 +163,7 @@ impl Comms {
                         Ok(Signal::Shutdown) => return Ok(()),
                         Err(std::sync::mpsc::RecvError) => return Ok(()),
                     }
-                }
-            });
+                })?;
 
             let message = self.try_receive()?;
 
