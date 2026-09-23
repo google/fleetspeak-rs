@@ -83,6 +83,12 @@ impl Comms {
         self::io::write_message(&mut *raw_out, message)
     }
 
+    pub fn receiver(&self) -> Receiver<'_> {
+        Receiver {
+            comms: self,
+        }
+    }
+
     pub fn try_receive(&self) -> std::io::Result<Option<Message>> {
         let mut raw_in = self.raw_in.lock().unwrap();
         self::io::try_read_message(&mut *raw_in)
@@ -185,6 +191,41 @@ impl Comms {
 
             Ok(message)
         })
+    }
+}
+
+pub struct Receiver<'comms> {
+    comms: &'comms Comms,
+}
+
+impl<'comms> Receiver<'comms> {
+
+    pub fn with_heartbeat(&self, rate: Duration) -> ReceiverWithHeartbeat<'comms> {
+        ReceiverWithHeartbeat {
+            comms: self.comms,
+            rate,
+        }
+    }
+}
+
+impl<'comms> Iterator for Receiver<'comms> {
+    type Item = std::io::Result<Message>;
+
+    fn next(&mut self) -> Option<std::io::Result<Message>> {
+        self.comms.try_receive().transpose()
+    }
+}
+
+pub struct ReceiverWithHeartbeat<'comms> {
+    comms: &'comms Comms,
+    rate: Duration,
+}
+
+impl<'comms> Iterator for ReceiverWithHeartbeat<'comms> {
+    type Item = std::io::Result<Message>;
+
+    fn next(&mut self) -> Option<std::io::Result<Message>> {
+        self.comms.try_receive_with_heartbeat(self.rate).transpose()
     }
 }
 

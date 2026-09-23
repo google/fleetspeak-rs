@@ -16,9 +16,12 @@ fn main() {
     fleetspeak.startup("0.0.1")
         .expect("failed to send Fleetspeak startup message");
 
-    while let Some(packet) = fleetspeak.try_receive_with_heartbeat(Duration::from_secs(1))
-        .expect("failed to receive Fleetspeak message")
+    for packet in fleetspeak.receiver()
+        .with_heartbeat(Duration::from_secs(1))
     {
+        let packet = packet
+            .expect("failed to receive Fleetspeak message");
+
         let request = std::str::from_utf8(&packet.data).unwrap();
         let response = format!("Hello, {}!", request);
 
