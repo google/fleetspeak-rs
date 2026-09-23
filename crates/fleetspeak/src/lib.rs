@@ -22,89 +22,48 @@ mod io;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
-pub struct Sender {
-    inner: SenderRaw<crate::io::CommsOutRaw>,
+pub struct Comms {
+    // TODO(rust-lang/rust#134645): Migrate to `std::sync::nonpoison::Mutext`
+    // (or `std::sync::ReentrantLock`) once stable.
+    raw_out: Mutex<crate::io::CommsOutRaw>,
+    raw_in: Mutex<crate::io::CommsInRaw>,
+    last_heartbeat: Mutex<Option<Instant>>,
 }
 
-pub struct Receiver {
-    inner: ReceiverRaw<crate::io::CommsInRaw>,
-}
+impl Comms {
 
-// TODO(@panhania): Mark as `unsafe`.
-pub fn handshake_from_env() -> std::io::Result<(Sender, Receiver)> {
-    // TODO(@panhania): Improve error reporting.
-    let input = crate::io::CommsInRaw::from_env()
-        .map_err(CommsInEnvError)?;
+    // TODO(@panhania): Mark as `unsafe`.
+    pub fn from_env() -> std::io::Result<Comms> {
+        let mut raw_in = crate::io::CommsInRaw::from_env()
+            .map_err(CommsInEnvError)?;
 
-    let output = crate::io::CommsOutRaw::from_env()
-        .map_err(CommsOutEnvError)?;
+        let mut raw_out = crate::io::CommsOutRaw::from_env()
+            .map_err(CommsOutEnvError)?;
 
-    let (sender, receiver) = handshake(output, input)?;
-    Ok((Sender { inner: sender }, Receiver { inner: receiver }))
-}
+        crate::io::handshake(&mut raw_in, &mut raw_out)
+            .map_err(HandshakeError)?;
 
-impl Sender {
-
-    pub fn startup(&mut self, version: &str) -> std::io::Result<()> {
-        self.inner.startup(version)
+        Ok(Comms {
+            raw_in: Mutex::new(raw_in),
+            raw_out: Mutex::new(raw_out),
+            last_heartbeat: Mutex::new(None),
+        })
     }
 
-    pub fn heartbeat(&mut self) -> std::io::Result<()> {
-        self.inner.heartbeat()
+    pub fn startup(&self, version: &str) -> std::io::Result<()> {
+        let mut raw_out = self.raw_out.lock().unwrap();
+        self::io::write_startup(&mut *raw_out, version)
     }
 
-    pub fn heartbeat_with_throttle(&mut self, rate: Duration) -> std::io::Result<()> {
-        self.inner.heartbeat_with_throttle(rate)
+    pub fn heartbeat(&self) -> std::io::Result<()> {
+        let mut raw_out = self.raw_out.lock().unwrap();
+        self::io::write_heartbeat(&mut *raw_out)
     }
 
-    pub fn send(&mut self, message: Message) -> std::io::Result<()> {
-        self.inner.send(message)
-    }
-}
+    pub fn heartbeat_with_throttle(&self, rate: Duration) -> std::io::Result<()> {
+        let mut last_heartbeat = self.last_heartbeat.lock().unwrap();
 
-impl Receiver {
-
-    pub fn try_receive(&mut self) -> std::io::Result<Option<Message>> {
-        self.inner.try_receive()
-    }
-
-    pub fn try_receive_with_heartbeat(&mut self, rate: Duration) -> std::io::Result<Option<Message>> {
-        self.inner.try_receive_with_heartbeat(rate)
-    }
-}
-
-pub struct SenderRaw<W: std::io::Write> {
-    output: W,
-    last_heartbeat: Option<std::time::Instant>,
-}
-
-pub struct ReceiverRaw<R: std::io::Read> {
-    input: R,
-}
-
-pub fn handshake<W, R>(mut output: W, mut input: R) -> std::io::Result<(SenderRaw<W>, ReceiverRaw<R>)>
-where
-    W: std::io::Write,
-    R: std::io::Read,
-{
-    crate::io::handshake(&mut input, &mut output)
-        .map_err(HandshakeError)?;
-
-    Ok((SenderRaw { output, last_heartbeat: None }, ReceiverRaw { input } ))
-}
-
-impl<W: std::io::Write> SenderRaw<W> {
-
-    pub fn startup(&mut self, version: &str) -> std::io::Result<()> {
-        self::io::write_startup(&mut self.output, version)
-    }
-
-    pub fn heartbeat(&mut self) -> std::io::Result<()> {
-        self::io::write_heartbeat(&mut self.output)
-    }
-
-    pub fn heartbeat_with_throttle(&mut self, rate: Duration) -> std::io::Result<()> {
-        match self.last_heartbeat {
+        match *last_heartbeat {
             Some(last_heartbeat) if last_heartbeat.elapsed() < rate => {
             // Do nothing if the last heartbeat happened more recently than the
             // specified heartbeat rate.
@@ -114,23 +73,22 @@ impl<W: std::io::Write> SenderRaw<W> {
         }
 
         self.heartbeat()?;
-        self.last_heartbeat = Some(Instant::now());
+        *last_heartbeat = Some(Instant::now());
 
         Ok(())
     }
 
-    pub fn send(&mut self, message: Message) -> std::io::Result<()> {
-        self::io::write_message(&mut self.output, message)
-    }
-}
-
-impl<R: std::io::Read> ReceiverRaw<R> {
-
-    pub fn try_receive(&mut self) -> std::io::Result<Option<Message>> {
-        self::io::try_read_message(&mut self.input)
+    pub fn send(&self, message: Message) -> std::io::Result<()> {
+        let mut raw_out = self.raw_out.lock().unwrap();
+        self::io::write_message(&mut *raw_out, message)
     }
 
-    pub fn try_receive_with_heartbeat(&mut self, rate: Duration) -> std::io::Result<Option<Message>> {
+    pub fn try_receive(&self) -> std::io::Result<Option<Message>> {
+        let mut raw_in = self.raw_in.lock().unwrap();
+        self::io::try_read_message(&mut *raw_in)
+    }
+
+    pub fn try_receive_with_heartbeat(&self, rate: Duration) -> std::io::Result<Option<Message>> {
         // TODO(rust-lang/rust#35121): Replace with `!` once stable.
         enum Never {
         }
@@ -165,27 +123,6 @@ impl<R: std::io::Read> ReceiverRaw<R> {
     }
 }
 
-impl<R: std::io::Read> IntoIterator for ReceiverRaw<R> {
-    type Item = std::io::Result<Message>;
-    type IntoIter = RawIntoIter<R>;
-
-    fn into_iter(self) -> RawIntoIter<R> {
-        RawIntoIter { receiver: self }
-    }
-}
-
-pub struct RawIntoIter<R: std::io::Read> {
-    receiver: ReceiverRaw<R>,
-}
-
-impl<R: std::io::Read> Iterator for RawIntoIter<R> {
-    type Item = std::io::Result<Message>;
-
-    fn next(&mut self) -> Option<std::io::Result<Message>> {
-        self.receiver.try_receive().transpose()
-    }
-}
-
 /// A Fleetspeak client communication message.
 ///
 /// This structure represents incoming or outgoing message objects delivered by
@@ -209,7 +146,8 @@ pub struct Message {
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
 pub fn heartbeat() {
-    execute(&CONNECTION.sender, |sender| sender.heartbeat())
+    COMMS.heartbeat()
+        .expect("failed to send heartbeat")
 }
 
 /// Sends a heartbeat signal to the Fleetspeak client but no more frequently
@@ -223,7 +161,8 @@ pub fn heartbeat() {
 ///
 /// [`heartbeat`]: crate::heartbeat
 pub fn heartbeat_with_throttle(rate: Duration) {
-    execute(&CONNECTION.sender, |sender| sender.heartbeat_with_throttle(rate))
+    COMMS.heartbeat_with_throttle(rate)
+        .expect("failed to send heartbeat")
 }
 
 /// Sends a system message with startup information to the Fleetspeak client.
@@ -235,7 +174,8 @@ pub fn heartbeat_with_throttle(rate: Duration) {
 /// The `version` string should contain a self-reported version of the service.
 /// This data is used primarily for statistics.
 pub fn startup(version: &str) {
-    execute(&CONNECTION.sender, |sender| sender.startup(version))
+    COMMS.startup(version)
+        .expect("failed to send startup notification")
 }
 
 /// Sends the message to the Fleetspeak server.
@@ -260,7 +200,8 @@ pub fn startup(version: &str) {
 /// });
 /// ```
 pub fn send(message: Message) {
-    execute(&CONNECTION.sender, |sender| sender.send(message))
+    COMMS.send(message)
+        .expect("failed to send")
 }
 
 /// Receives a message from the Fleetspeak server.
@@ -320,7 +261,8 @@ pub fn receive() -> Message {
 /// }
 /// ```
 pub fn try_receive() -> Option<Message> {
-    execute(&CONNECTION.receiver, |receiver| receiver.try_receive())
+    COMMS.try_receive()
+        .expect("failed to receive")
 }
 
 /// Receive a message from the Fleetspeak server, heartbeating in background.
@@ -390,52 +332,18 @@ pub fn receive_with_heartbeat(rate: Duration) -> Message {
 /// }
 /// ```
 pub fn try_receive_with_heartbeat(rate: Duration) -> Option<Message> {
-    execute(&CONNECTION.receiver, |receiver| receiver.try_receive_with_heartbeat(rate))
+    COMMS.try_receive_with_heartbeat(rate)
+        .expect("failed to receive")
 }
 
-/// A connection to the Fleetspeak client.
-///
-/// The connection is realized through two files (specified by descriptors given
-/// by the Fleetspeak client as environment variables): input and output. Each
-/// of these files is guarded by a separate mutex to allow writing (e.g. for
-/// sending heartbeat signals) when another thread might be busy with reading
-/// messages.
-struct Connection {
-    sender: Mutex<Sender>,
-    receiver: Mutex<Receiver>,
-}
+static COMMS: LazyLock<Comms> = LazyLock::new(|| {
+    let comms = Comms::from_env()
+        .expect("comms initialization failure");
 
-static CONNECTION: LazyLock<Connection> = LazyLock::new(|| {
-    let (sender, receiver) = handshake_from_env()
-        .expect("handshake failure");
+    log::info!("comms initialized");
 
-    log::info!("handshake successful");
-
-    Connection {
-        sender: Mutex::new(sender),
-        receiver: Mutex::new(receiver),
-    }
+    comms
 });
-
-/// Executes the given function with a file extracted from the mutex.
-///
-/// It might happen that the mutex becomes poisoned and this call will panic in
-/// result. This should not be a problem in practice, because mutex poisoning
-/// is a result of one of the threads being aborted. In case of a such scenario,
-/// it is likely the service needs to be restarted anyway.
-///
-/// Any I/O error returned by the executed function indicates a fatal connection
-/// failure and ends with a panic.
-fn execute<C, F, T>(mutex: &Mutex<C>, f: F) -> T
-where
-    F: FnOnce(&mut C) -> std::io::Result<T>,
-{
-    let mut file = mutex.lock().expect("poisoned connection mutex");
-    match f(&mut file) {
-        Ok(value) => value,
-        Err(error) => panic!("connection failure: {}", error),
-    }
-}
 
 #[derive(Debug)]
 struct HandshakeError(std::io::Error);
