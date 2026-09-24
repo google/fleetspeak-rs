@@ -5,11 +5,8 @@
 
 //! A [Fleetspeak] client connector library.
 //!
-//! This library exposes a set of functions for writing client-side Fleetspeak
-//! services. Each of these functions operates on a global connection object
-//! that is lazily established. If this global connection cannot be established,
-//! the library will panic (because without this connection Fleetspeak will shut
-//! the service down anyway).
+//! This library exposes a set of utilities for writing client-side Fleetspeak
+//! services.
 //!
 //! Note that each service should send startup information upon its inception
 //! and continue to heartbeat from time to time to notify the Fleetspeak client
@@ -22,6 +19,7 @@ mod io;
 use std::sync::{LazyLock, Mutex};
 use std::time::{Duration, Instant};
 
+/// Communication channel with the Fleetspeak process.
 pub struct Comms {
     // TODO(rust-lang/rust#134645): Migrate to `std::sync::nonpoison::Mutext`
     // (or `std::sync::ReentrantLock`) once stable.
@@ -39,11 +37,11 @@ impl Comms {
     /// This function must be invoked where the environment is guaranteed not to
     /// have been tampered with (e.g. at the beginning of the `main` function),
     /// so that it contains values really set by Fleetspeak (and not e.g. file
-    /// descriptors of Rust-allocated resources "leaked" by [`as_raw_fd`][1].
+    /// descriptors of Rust-allocated resources "leaked" by [`as_raw_fd`][1]).
     ///
     /// This is to adhere to [I/O safety][2] requirements.
     ///
-    /// Synchronization is ensured on per-instance basis, so the users should
+    /// Synchronization is done on per-instance basis, so the users should
     /// ensure that this is called only once in the program lifetime.
     ///
     /// [1]: https://doc.rust-lang.org/std/os/fd/trait.AsRawFd.html#tymethod.as_raw_fd
@@ -69,16 +67,41 @@ impl Comms {
         })
     }
 
+    /// Sends a system message with startup information to the Fleetspeak
+    /// client.
+    ///
+    /// All clients are required to send this information on startup. If the
+    /// client does not receive this information quickly enough, the service
+    /// will be killed.
+    ///
+    /// The `version` string should contain a self-reported version of the
+    /// service. This data is used primarily for statistics.
     pub fn startup(&self, version: &str) -> std::io::Result<()> {
         let mut raw_out = self.raw_out.lock().unwrap();
         self::io::write_startup(&mut *raw_out, version)
     }
 
+    /// Sends a heartbeat signal to the Fleetspeak client.
+    ///
+    /// All client services should heartbeat from time to time. Otherwise, from
+    /// the Fleetspeak perspective, the service is unresponsive and should be
+    /// restarted.
+    ///
+    /// The exact frequency of the required heartbeat is defined in the service
+    /// configuration file.
     pub fn heartbeat(&self) -> std::io::Result<()> {
         let mut raw_out = self.raw_out.lock().unwrap();
         self::io::write_heartbeat(&mut *raw_out)
     }
 
+    /// Sends a heartbeat signal to the Fleetspeak client but no more frequently
+    /// than the specified `rate`.
+    ///
+    /// Note that the specified `rate` should be at least the rate defined in
+    /// the Fleetspeak service configuration file. Because of potential slow-
+    /// downs, some margin of error should be left.
+    ///
+    /// See documentation for the [`Comms::heartbeat`] method for more details.
     pub fn heartbeat_with_throttle(&self, rate: Duration) -> std::io::Result<()> {
         let mut last_heartbeat = self.last_heartbeat.lock().unwrap();
 
@@ -97,22 +120,128 @@ impl Comms {
         Ok(())
     }
 
+    /// Sends the message to the Fleetspeak server.
+    ///
+    /// The data is delivered to the server-side service as specified by the
+    /// message and optionally tagged with a type if specified. This optional
+    /// message type is irrelevant for Fleetspeak but might be useful for the
+    /// service the message is delivered to.
+    ///
+    /// In case of any I/O failure or malformed message (e.g. due to encoding
+    /// problems), an error is reported.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use fleetspeak::Message;
+    ///
+    /// let comms = unsafe { fleetspeak::Comms::from_env() }.unwrap();
+    ///
+    /// comms.send(Message {
+    ///     service: String::from("example"),
+    ///     kind: None,
+    ///     data: String::from("Hello, world!").into_bytes(),
+    /// }).unwrap();
+    /// ```
     pub fn send(&self, message: Message) -> std::io::Result<()> {
         let mut raw_out = self.raw_out.lock().unwrap();
         self::io::write_message(&mut *raw_out, message)
     }
 
+    /// Creates an iterator over messages from the Fleetspeak server.
+    ///
+    /// The iterator will block until there is a message to be read from the
+    /// input or the input reaches its end (in which case the iterator will
+    /// end).
+    ///
+    /// Note that in particular it means your service will be unable to send
+    /// heartbeat signals properly. If you are not expecting messages to arrive
+    /// quickly, you should use [`Receiver::with_heartbeat`] method to adapt
+    /// the iterator to one that does hearbeating in background.
+    ///
+    /// The iterator will yield `Err` values in case of any I/O failure or
+    /// malformed message (e.g. due to parsing issues or when some expected
+    /// fields were not present).
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::time::Duration;
+    ///
+    /// let comms = unsafe { fleetspeak::Comms::from_env() }.unwrap();
+    ///
+    /// for message in comms.receiver()
+    ///     .map(Result::unwrap)
+    /// {
+    ///     let name = std::str::from_utf8(&message.data)
+    ///         .expect("invalid message content");
+    /// }
+    /// ```
     pub fn receiver(&self) -> Receiver<'_> {
         Receiver {
             comms: self,
         }
     }
 
+    /// Attempts to receive a message from the Fleetspeak server.
+    ///
+    /// This function will block until there is a message to be read from the
+    /// input or the input reaches its end (in which case the call will return
+    /// `None`).
+    ///
+    /// Note that in particular it means your service will be unable to
+    /// heartbeat properly. If you are not expecting the message to arrive
+    /// quickly, you should use [`Comms::try_receive_with_heartbeat`] instead.
+    ///
+    /// In case of any I/O failure or malformed message (e.g. due to parsing
+    /// issues or when some fields are not being present), an error is reported.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// let comms = unsafe { fleetspeak::Comms::from_env() }.unwrap();
+    ///
+    /// let message = comms.try_receive().unwrap()
+    ///     .expect("no message");
+    ///
+    /// let name = std::str::from_utf8(&message.data)
+    ///     .expect("invalid message content");
+    ///
+    /// println!("Hello, {name}!");
+    /// ```
     pub fn try_receive(&self) -> std::io::Result<Option<Message>> {
         let mut raw_in = self.raw_in.lock().unwrap();
         self::io::try_read_message(&mut *raw_in)
     }
 
+    /// Receive a message from the Fleetspeak server, sending hearbeat signals
+    /// in background at the specified `rate`.
+    ///
+    /// This function is useful in the main loop of your service when it is not
+    /// supposed to do anything until a request from the server arrives. If your
+    /// service is actually awaiting for a specific message to come, you should
+    /// use [`try_receive`] instead.
+    ///
+    /// In case of any I/O failure or malformed message (e.g. due to parsing
+    /// issues or when some fields are not being present), an error is reported.
+    ///
+    /// [`try_receive`]: Comms::try_receive
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::time::Duration;
+    ///
+    /// let comms = unsafe { fleetspeak::Comms::from_env() }.unwrap();
+    ///
+    /// let message = comms.try_receive_with_heartbeat(Duration::from_secs(1)).unwrap()
+    ///     .expect("no message");
+    ///
+    /// let name = std::str::from_utf8(&message.data)
+    ///     .expect("invalid message content");
+    ///
+    /// println!("Hello, {name}!");
+    /// ```
     pub fn try_receive_with_heartbeat(&self, rate: Duration) -> std::io::Result<Option<Message>> {
         std::thread::scope(|scope| {
             // TODO(rust-lang/rust#35121): Replace with `!` once stable.
@@ -159,12 +288,37 @@ impl Comms {
     }
 }
 
+/// An iterator yielding messages from the Fleetspeak server.
+///
+/// It is created by the [`Comms::receiver`] method, see its docs for more
+/// details.
 pub struct Receiver<'comms> {
     comms: &'comms Comms,
 }
 
 impl<'comms> Receiver<'comms> {
 
+    /// Creates a variant of this iterator that sends heartbeat signals at the
+    /// specified `rate` in background.
+    ///
+    /// See documentation for the [`Comms::try_receive_with_heartbeat`] why it
+    /// might be important.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::time::Duration;
+    ///
+    /// let comms = unsafe { fleetspeak::Comms::from_env() }.unwrap();
+    ///
+    /// for message in comms.receiver()
+    ///     .with_heartbeat(std::time::Duration::from_secs(1))
+    ///     .map(Result::unwrap)
+    /// {
+    ///     let name = std::str::from_utf8(&message.data)
+    ///         .expect("invalid message content");
+    /// }
+    /// ```
     pub fn with_heartbeat(&self, rate: Duration) -> ReceiverWithHeartbeat<'comms> {
         ReceiverWithHeartbeat {
             comms: self.comms,
@@ -181,6 +335,11 @@ impl<'comms> Iterator for Receiver<'comms> {
     }
 }
 
+/// An iterator yielding messages from the Fleetspeak server, sending heartbeat
+/// signals in background.
+///
+/// It is created by the [`Receiver::with_heartbeat`] method, see its docs for
+/// more details.
 pub struct ReceiverWithHeartbeat<'comms> {
     comms: &'comms Comms,
     rate: Duration,
