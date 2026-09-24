@@ -134,11 +134,10 @@ impl Comms {
                     // error).
                     match receiver.recv_timeout(rate) {
                         Ok(never) => match never {},
-                        Err(Timeout) => match self.heartbeat() {
-                            Ok(()) => (),
-                            Err(error) => return Err(error),
-                        },
                         Err(Disconnected) => return Ok(()),
+                        Err(Timeout) => {
+                            self.heartbeat()?;
+                        }
                     }
                 })?;
 
