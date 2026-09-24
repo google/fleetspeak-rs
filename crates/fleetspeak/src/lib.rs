@@ -375,6 +375,7 @@ pub struct Message {
 ///
 /// The exact frequency of the required heartbeat is defined in the service
 /// configuration file.
+#[deprecated(since = "0.4.5", note = "not fully safe, use `Comms`")]
 pub fn heartbeat() {
     COMMS.heartbeat()
         .expect("failed to send heartbeat")
@@ -390,6 +391,7 @@ pub fn heartbeat() {
 /// See documentation for the [`heartbeat`] function for more details.
 ///
 /// [`heartbeat`]: crate::heartbeat
+#[deprecated(since = "0.4.5", note = "not fully safe, use `Comms`")]
 pub fn heartbeat_with_throttle(rate: Duration) {
     COMMS.heartbeat_with_throttle(rate)
         .expect("failed to send heartbeat")
@@ -403,6 +405,7 @@ pub fn heartbeat_with_throttle(rate: Duration) {
 ///
 /// The `version` string should contain a self-reported version of the service.
 /// This data is used primarily for statistics.
+#[deprecated(since = "0.4.5", note = "not fully safe, use `Comms`")]
 pub fn startup(version: &str) {
     COMMS.startup(version)
         .expect("failed to send startup notification")
@@ -429,6 +432,7 @@ pub fn startup(version: &str) {
 ///     data: String::from("Hello, world!").into_bytes(),
 /// });
 /// ```
+#[deprecated(since = "0.4.5", note = "not fully safe, use `Comms`")]
 pub fn send(message: Message) {
     COMMS.send(message)
         .expect("failed to send")
@@ -456,7 +460,9 @@ pub fn send(message: Message) {
 ///
 /// println!("Hello, {name}!");
 /// ```
+#[deprecated(since = "0.4.5", note = "not fully safe, use `Comms`")]
 pub fn receive() -> Message {
+    #[allow(deprecated)] // The outer function is deprecated as well.
     try_receive()
         .expect("end of input")
 }
@@ -490,6 +496,7 @@ pub fn receive() -> Message {
 ///     }
 /// }
 /// ```
+#[deprecated(since = "0.4.5", note = "not fully safe, use `Comms`")]
 pub fn try_receive() -> Option<Message> {
     COMMS.try_receive()
         .expect("failed to receive")
@@ -522,7 +529,9 @@ pub fn try_receive() -> Option<Message> {
 ///
 /// println!("Hello, {name}!");
 /// ```
+#[deprecated(since = "0.4.5", note = "not fully safe, use `Comms`")]
 pub fn receive_with_heartbeat(rate: Duration) -> Message {
+    #[allow(deprecated)] // The outer function is deprecated as well.
     try_receive_with_heartbeat(rate)
         .expect("end of input")
 }
@@ -561,6 +570,7 @@ pub fn receive_with_heartbeat(rate: Duration) -> Message {
 ///     }
 /// }
 /// ```
+#[deprecated(since = "0.4.5", note = "not fully safe, use `Comms`")]
 pub fn try_receive_with_heartbeat(rate: Duration) -> Option<Message> {
     COMMS.try_receive_with_heartbeat(rate)
         .expect("failed to receive")
