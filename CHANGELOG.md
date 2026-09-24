@@ -1,6 +1,9 @@
 Upcoming release
 ================
 
+  * Introduced  new API that adheres to I/O safety.
+  * Marked old API as deprecated.
+
 0.4.4 (2026-09-16)
 ==================
 
