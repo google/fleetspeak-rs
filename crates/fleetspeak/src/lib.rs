@@ -222,6 +222,11 @@ impl Comms {
     /// service is actually awaiting for a specific message to come, you should
     /// use [`try_receive`] instead.
     ///
+    /// Note that this function only sends heartbeat _if needed_ to receive a
+    /// message. If messages are received fast enough, no heartbeating is done
+    /// by this method and thus your service is still responsible to report some
+    /// activity back.
+    ///
     /// In case of any I/O failure or malformed message (e.g. due to parsing
     /// issues or when some fields are not being present), an error is reported.
     ///
