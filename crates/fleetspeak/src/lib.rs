@@ -25,17 +25,17 @@ use std::time::{Duration, Instant};
 /// The [`startup`] method should be used to send startup information and make
 /// the communication channel ready for sending and receiving messages.
 ///
-/// [`startup`]: UnstartedComms::startup
-pub struct UnstartedComms {
+/// [`startup`]: CommsUnstarted::startup
+pub struct CommsUnstarted {
     // TODO(rust-lang/rust#134645): Migrate to `std::sync::nonpoison::Mutext`
     // (or `std::sync::ReentrantLock`) once stable.
     raw_out: Mutex<crate::io::CommsOutRaw>,
     raw_in: Mutex<crate::io::CommsInRaw>,
 }
 
-impl UnstartedComms {
+impl CommsUnstarted {
 
-    /// Returns a [`UnstartedComms`] instance given by the parent Fleetspeak
+    /// Returns a [`CommsUnstarted`] instance given by the parent Fleetspeak
     /// process.
     ///
     /// # Safety
@@ -52,7 +52,7 @@ impl UnstartedComms {
     ///
     /// [1]: https://doc.rust-lang.org/std/os/fd/trait.AsRawFd.html#tymethod.as_raw_fd
     /// [2]: https://rust-lang.github.io/rfcs/3128-io-safety.html
-    pub unsafe fn from_env() -> std::io::Result<UnstartedComms> {
+    pub unsafe fn from_env() -> std::io::Result<CommsUnstarted> {
         // SAFETY: Safety contract is the same as for the outer function.
         let mut raw_in = unsafe {
             crate::io::CommsInRaw::from_env()
@@ -66,7 +66,7 @@ impl UnstartedComms {
         crate::io::handshake(&mut raw_in, &mut raw_out)
             .map_err(HandshakeError)?;
 
-        Ok(UnstartedComms {
+        Ok(CommsUnstarted {
             raw_in: Mutex::new(raw_in),
             raw_out: Mutex::new(raw_out),
         })
@@ -160,7 +160,7 @@ impl Comms {
     /// ```no_run
     /// use fleetspeak::Message;
     ///
-    /// let comms = unsafe { fleetspeak::UnstartedComms::from_env() }.unwrap();
+    /// let comms = unsafe { fleetspeak::CommsUnstarted::from_env() }.unwrap();
     /// let comms = comms.startup("0.0.0").unwrap();
     ///
     /// comms.send(Message {
@@ -194,7 +194,7 @@ impl Comms {
     /// ```no_run
     /// use std::time::Duration;
     ///
-    /// let comms = unsafe { fleetspeak::UnstartedComms::from_env() }.unwrap();
+    /// let comms = unsafe { fleetspeak::CommsUnstarted::from_env() }.unwrap();
     /// let comms = comms.startup("0.0.0").unwrap();
     ///
     /// for message in comms.receiver()
@@ -226,7 +226,7 @@ impl Comms {
     /// # Examples
     ///
     /// ```no_run
-    /// let comms = unsafe { fleetspeak::UnstartedComms::from_env() }.unwrap();
+    /// let comms = unsafe { fleetspeak::CommsUnstarted::from_env() }.unwrap();
     /// let comms = comms.startup("0.0.0").unwrap();
     ///
     /// let message = comms.try_receive().unwrap()
@@ -265,7 +265,7 @@ impl Comms {
     /// ```no_run
     /// use std::time::Duration;
     ///
-    /// let comms = unsafe { fleetspeak::UnstartedComms::from_env() }.unwrap();
+    /// let comms = unsafe { fleetspeak::CommsUnstarted::from_env() }.unwrap();
     /// let comms = comms.startup("0.0.0").unwrap();
     ///
     /// let message = comms.try_receive_with_heartbeat(Duration::from_secs(1)).unwrap()
@@ -343,7 +343,7 @@ impl<'comms> Receiver<'comms> {
     /// ```no_run
     /// use std::time::Duration;
     ///
-    /// let comms = unsafe { fleetspeak::UnstartedComms::from_env() }.unwrap();
+    /// let comms = unsafe { fleetspeak::CommsUnstarted::from_env() }.unwrap();
     /// let comms = comms.startup("0.0.0").unwrap();
     ///
     /// for message in comms.receiver()
