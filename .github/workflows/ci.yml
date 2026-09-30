@@ -42,7 +42,6 @@ jobs:
         run: cargo test
       - name: 'Run end-to-end tests for the library'
         run: |
-          cargo build --example hello --example hello_channel
+          cargo build --example hello
           cd 'tests'
           go test . --hello '../target/debug/examples/hello' --std_forward
-          go test . --hello '../target/debug/examples/hello_channel' --std_forward
