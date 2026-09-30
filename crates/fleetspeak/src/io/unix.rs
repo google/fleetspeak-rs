@@ -24,7 +24,22 @@ pub struct CommsOutRaw {
 impl CommsInRaw {
 
     /// Returns a [`CommsIn`] instance given by the parent Fleetspeak process.
-    pub fn from_env() -> Result<CommsInRaw, CommsEnvError> {
+    ///
+    /// # Safety
+    ///
+    /// This function must be invoked where the environment is guaranteed not to
+    /// have been tampered with (e.g. at the beginning of the `main` function),
+    /// so that it contains values really set by Fleetspeak (and not e.g. file
+    /// descriptors of Rust-allocated resources "leaked" by [`as_raw_fd`][1].
+    ///
+    /// This is to adhere to [I/O safety][2] requirements.
+    ///
+    /// Because this is an unsynchronized channel, the users should ensure that
+    /// this is called only once in the program lifetime.
+    ///
+    /// [1]: https://doc.rust-lang.org/std/os/fd/trait.AsRawFd.html#tymethod.as_raw_fd
+    /// [2]: https://rust-lang.github.io/rfcs/3128-io-safety.html
+    pub unsafe fn from_env() -> Result<CommsInRaw, CommsEnvError> {
         Ok(CommsInRaw {
             fd: env_var_fd("FLEETSPEAK_COMMS_CHANNEL_INFD")?,
         })
@@ -34,7 +49,22 @@ impl CommsInRaw {
 impl CommsOutRaw {
 
     /// Returns a [`CommsOut`] instance given by the parent Fleetspeak process.
-    pub fn from_env() -> Result<CommsOutRaw, CommsEnvError> {
+    ///
+    /// # Safety
+    ///
+    /// This function must be invoked where the environment is guaranteed not to
+    /// have been tampered with (e.g. at the beginning of the `main` function),
+    /// so that it contains values really set by Fleetspeak (and not e.g. file
+    /// descriptors of Rust-allocated resources "leaked" by [`as_raw_fd`][1].
+    ///
+    /// This is to adhere to [I/O safety][2] requirements.
+    ///
+    /// Because this is an unsynchronized channel, the users should ensure that
+    /// this is called only once in the program lifetime.
+    ///
+    /// [1]: https://doc.rust-lang.org/std/os/fd/trait.AsRawFd.html#tymethod.as_raw_fd
+    /// [2]: https://rust-lang.github.io/rfcs/3128-io-safety.html
+    pub unsafe fn from_env() -> Result<CommsOutRaw, CommsEnvError> {
         Ok(CommsOutRaw {
             fd: env_var_fd("FLEETSPEAK_COMMS_CHANNEL_OUTFD")?,
         })
