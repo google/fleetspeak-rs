@@ -16,7 +16,7 @@
 
 mod io;
 
-use std::sync::{LazyLock, Mutex};
+use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
 /// Communication channel with the Fleetspeak process.
