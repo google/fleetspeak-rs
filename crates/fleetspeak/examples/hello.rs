@@ -11,7 +11,7 @@ fn main() {
     // SAFETY: We call `from_env` at the beginning of `main` so nothing could
     // have tampered with it. We also never invoke it again anywhere else.
     let fleetspeak = unsafe {
-        fleetspeak::CommsUnstarted::from_env()
+        fleetspeak::from_env()
     }.expect("failed to handshake Fleetspeak connection");
 
     let fleetspeak = fleetspeak.startup("0.0.1")
