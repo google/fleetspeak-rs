@@ -1,6 +1,8 @@
 Upcoming release
 ================
 
+  * Deleted deprecated API.
+
 0.4.5 (2026-09-30)
 ==================
 
