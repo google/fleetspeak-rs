@@ -19,53 +19,59 @@ mod io;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-/// Communication channel with the Fleetspeak process.
-pub struct Comms {
+/// Returns a [comms] instance given by the parent Fleetspeak process.
+///
+/// [comms]: CommsUnstarted
+///
+/// # Safety
+///
+/// This function must be invoked where the environment is guaranteed not to
+/// have been tampered with (e.g. at the beginning of the `main` function),
+/// so that it contains values really set by Fleetspeak (and not e.g. file
+/// descriptors of Rust-allocated resources "leaked" by [`as_raw_fd`][1]).
+///
+/// This is to adhere to [I/O safety][2] requirements.
+///
+/// Synchronization is done on per-instance basis, so the users should
+/// ensure that this is called only once in the program lifetime.
+///
+/// [1]: https://doc.rust-lang.org/std/os/fd/trait.AsRawFd.html#tymethod.as_raw_fd
+/// [2]: https://rust-lang.github.io/rfcs/3128-io-safety.html
+pub unsafe fn from_env() -> std::io::Result<CommsUnstarted> {
+    // SAFETY: Safety contract is the same as for the outer function.
+    let mut raw_in = unsafe {
+        crate::io::CommsInRaw::from_env()
+    }.map_err(CommsInEnvError)?;
+
+    // SAFETY: Safety contract is the same as for the outer function.
+    let mut raw_out = unsafe {
+        crate::io::CommsOutRaw::from_env()
+    }.map_err(CommsOutEnvError)?;
+
+    crate::io::handshake(&mut raw_in, &mut raw_out)
+        .map_err(HandshakeError)?;
+
+    Ok(CommsUnstarted {
+        raw_in: Mutex::new(raw_in),
+        raw_out: Mutex::new(raw_out),
+    })
+}
+
+/// Communication channel with the Fleetspeak process that did not send
+/// startup information.
+///
+/// The [`startup`] method should be used to send startup information and make
+/// the communication channel ready for sending and receiving messages.
+///
+/// [`startup`]: CommsUnstarted::startup
+pub struct CommsUnstarted {
     // TODO(rust-lang/rust#134645): Migrate to `std::sync::nonpoison::Mutext`
     // (or `std::sync::ReentrantLock`) once stable.
     raw_out: Mutex<crate::io::CommsOutRaw>,
     raw_in: Mutex<crate::io::CommsInRaw>,
-    last_heartbeat: Mutex<Option<Instant>>,
 }
 
-impl Comms {
-
-    // Returns a [`Comms`] instance given by the parent Fleetspeak process.
-    ///
-    /// # Safety
-    ///
-    /// This function must be invoked where the environment is guaranteed not to
-    /// have been tampered with (e.g. at the beginning of the `main` function),
-    /// so that it contains values really set by Fleetspeak (and not e.g. file
-    /// descriptors of Rust-allocated resources "leaked" by [`as_raw_fd`][1]).
-    ///
-    /// This is to adhere to [I/O safety][2] requirements.
-    ///
-    /// Synchronization is done on per-instance basis, so the users should
-    /// ensure that this is called only once in the program lifetime.
-    ///
-    /// [1]: https://doc.rust-lang.org/std/os/fd/trait.AsRawFd.html#tymethod.as_raw_fd
-    /// [2]: https://rust-lang.github.io/rfcs/3128-io-safety.html
-    pub unsafe fn from_env() -> std::io::Result<Comms> {
-        // SAFETY: Safety contract is the same as for the outer function.
-        let mut raw_in = unsafe {
-            crate::io::CommsInRaw::from_env()
-        }.map_err(CommsInEnvError)?;
-
-        // SAFETY: Safety contract is the same as for the outer function.
-        let mut raw_out = unsafe {
-            crate::io::CommsOutRaw::from_env()
-        }.map_err(CommsOutEnvError)?;
-
-        crate::io::handshake(&mut raw_in, &mut raw_out)
-            .map_err(HandshakeError)?;
-
-        Ok(Comms {
-            raw_in: Mutex::new(raw_in),
-            raw_out: Mutex::new(raw_out),
-            last_heartbeat: Mutex::new(None),
-        })
-    }
+impl CommsUnstarted {
 
     /// Sends a system message with startup information to the Fleetspeak
     /// client.
@@ -76,10 +82,30 @@ impl Comms {
     ///
     /// The `version` string should contain a self-reported version of the
     /// service. This data is used primarily for statistics.
-    pub fn startup(&self, version: &str) -> std::io::Result<()> {
-        let mut raw_out = self.raw_out.lock().unwrap();
-        self::io::write_startup(&mut *raw_out, version)
+    pub fn startup(self, version: &str) -> std::io::Result<Comms> {
+        {
+            let mut raw_out = self.raw_out.lock().unwrap();
+            self::io::write_startup(&mut *raw_out, version)?;
+        }
+
+        Ok(Comms {
+            raw_out: self.raw_out,
+            raw_in: self.raw_in,
+            last_heartbeat: Mutex::new(None),
+        })
     }
+}
+
+/// Communication channel with the Fleetspeak process.
+pub struct Comms {
+    // TODO(rust-lang/rust#134645): Migrate to `std::sync::nonpoison::Mutext`
+    // (or `std::sync::ReentrantLock`) once stable.
+    raw_out: Mutex<crate::io::CommsOutRaw>,
+    raw_in: Mutex<crate::io::CommsInRaw>,
+    last_heartbeat: Mutex<Option<Instant>>,
+}
+
+impl Comms {
 
     /// Sends a heartbeat signal to the Fleetspeak client.
     ///
@@ -135,7 +161,8 @@ impl Comms {
     /// ```no_run
     /// use fleetspeak::Message;
     ///
-    /// let comms = unsafe { fleetspeak::Comms::from_env() }.unwrap();
+    /// let comms = unsafe { fleetspeak::from_env() }.unwrap();
+    /// let comms = comms.startup("0.0.0").unwrap();
     ///
     /// comms.send(Message {
     ///     service: String::from("example"),
@@ -168,7 +195,8 @@ impl Comms {
     /// ```no_run
     /// use std::time::Duration;
     ///
-    /// let comms = unsafe { fleetspeak::Comms::from_env() }.unwrap();
+    /// let comms = unsafe { fleetspeak::from_env() }.unwrap();
+    /// let comms = comms.startup("0.0.0").unwrap();
     ///
     /// for message in comms.receiver()
     ///     .map(Result::unwrap)
@@ -199,7 +227,8 @@ impl Comms {
     /// # Examples
     ///
     /// ```no_run
-    /// let comms = unsafe { fleetspeak::Comms::from_env() }.unwrap();
+    /// let comms = unsafe { fleetspeak::from_env() }.unwrap();
+    /// let comms = comms.startup("0.0.0").unwrap();
     ///
     /// let message = comms.try_receive().unwrap()
     ///     .expect("no message");
@@ -237,7 +266,8 @@ impl Comms {
     /// ```no_run
     /// use std::time::Duration;
     ///
-    /// let comms = unsafe { fleetspeak::Comms::from_env() }.unwrap();
+    /// let comms = unsafe { fleetspeak::from_env() }.unwrap();
+    /// let comms = comms.startup("0.0.0").unwrap();
     ///
     /// let message = comms.try_receive_with_heartbeat(Duration::from_secs(1)).unwrap()
     ///     .expect("no message");
@@ -314,7 +344,8 @@ impl<'comms> Receiver<'comms> {
     /// ```no_run
     /// use std::time::Duration;
     ///
-    /// let comms = unsafe { fleetspeak::Comms::from_env() }.unwrap();
+    /// let comms = unsafe { fleetspeak::from_env() }.unwrap();
+    /// let comms = comms.startup("0.0.0").unwrap();
     ///
     /// for message in comms.receiver()
     ///     .with_heartbeat(std::time::Duration::from_secs(1))

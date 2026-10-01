@@ -2,6 +2,7 @@ Upcoming release
 ================
 
   * Deleted deprecated API.
+  * Changed API to enforce sending startup information using the type system.
 
 0.4.5 (2026-09-30)
 ==================
