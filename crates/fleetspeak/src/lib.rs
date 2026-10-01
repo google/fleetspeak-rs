@@ -21,7 +21,7 @@ use std::time::{Duration, Instant};
 
 /// Returns a [comms] instance given by the parent Fleetspeak process.
 ///
-/// [comms]: UnstartedComms
+/// [comms]: CommsUnstarted
 ///
 /// # Safety
 ///
