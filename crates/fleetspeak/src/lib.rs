@@ -23,8 +23,8 @@ use std::time::{Duration, Instant};
 pub struct Comms {
     // TODO(rust-lang/rust#134645): Migrate to `std::sync::nonpoison::Mutext`
     // (or `std::sync::ReentrantLock`) once stable.
-    raw_out: Mutex<crate::io::CommsOutRaw>,
-    raw_in: Mutex<crate::io::CommsInRaw>,
+    raw_out: Mutex<std::io::BufWriter<crate::io::CommsOutRaw>>,
+    raw_in: Mutex<std::io::BufReader<crate::io::CommsInRaw>>,
     last_heartbeat: Mutex<Option<Instant>>,
 }
 
@@ -61,8 +61,8 @@ impl Comms {
             .map_err(HandshakeError)?;
 
         Ok(Comms {
-            raw_in: Mutex::new(raw_in),
-            raw_out: Mutex::new(raw_out),
+            raw_in: Mutex::new(std::io::BufReader::new(raw_in)),
+            raw_out: Mutex::new(std::io::BufWriter::new(raw_out)),
             last_heartbeat: Mutex::new(None),
         })
     }
